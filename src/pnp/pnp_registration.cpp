@@ -79,6 +79,8 @@ CapabilityPayload PnpRegistration::createInitialPayload(const char* capability_i
         payload.unit = "meter";
     } else if (isSameId(capability_id, CAP_SERVO_POSITION)) {
         payload.unit = "degree";
+    } else if (isSameId(capability_id, CAP_MOTOR_CONTROL)) {
+        payload.unit = "percent";
     } else {
         payload.unit = "degree_celsius";
     }
@@ -92,7 +94,8 @@ CapabilityRecord PnpRegistration::createCapabilityRecord(
     uint8_t owner_device_index) const {
     CapabilityRecord record;
     record.capability_id = capability_id;
-    if (isSameId(capability_id, CAP_SERVO_POSITION)) {
+    if (isSameId(capability_id, CAP_SERVO_POSITION) ||
+        isSameId(capability_id, CAP_MOTOR_CONTROL)) {
         record.category = "actuators";
         record.kind = "actuator";
         record.access = "read_write";
@@ -111,7 +114,8 @@ CapabilityRecord PnpRegistration::createCapabilityRecord(
 bool PnpRegistration::isSupportedCapability(const char* capability_id) const {
     return isSameId(capability_id, CAP_TEMPERATURE) ||
            isSameId(capability_id, CAP_DISTANCE) ||
-           isSameId(capability_id, CAP_SERVO_POSITION);
+           isSameId(capability_id, CAP_SERVO_POSITION) ||
+           isSameId(capability_id, CAP_MOTOR_CONTROL);
 }
 
 bool PnpRegistration::isSameId(const char* left, const char* right) const {

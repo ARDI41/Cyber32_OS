@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "../core/types/command_types.h"
+#include "../core/types/motor_types.h"
 #include "../core/types/runtime_state.h"
 #include "../registry/registry_records.h"
 #include "../registry/registry_result.h"
@@ -30,6 +31,20 @@ struct ApiServoCommandRequest {
 };
 
 struct ApiServoCommandResponse {
+    bool ok;
+    CommandState command_state;
+    bool accepted;
+    bool executed;
+    const char* error_code;
+};
+
+struct ApiMotorCommandRequest {
+    MotorDirection direction;
+    float speed_percent;
+    uint32_t timeout_ms;
+};
+
+struct ApiMotorCommandResponse {
     bool ok;
     CommandState command_state;
     bool accepted;

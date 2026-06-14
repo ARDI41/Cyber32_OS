@@ -22,6 +22,24 @@ RuntimeState Runtime::state() const {
     return state_;
 }
 
+bool Runtime::enterSafeMode() {
+    state_ = RuntimeState::SAFE_MODE;
+    return true;
+}
+
+bool Runtime::exitSafeMode() {
+    if (state_ != RuntimeState::SAFE_MODE) {
+        return false;
+    }
+
+    state_ = RuntimeState::READY;
+    return true;
+}
+
+bool Runtime::isSafeMode() const {
+    return state_ == RuntimeState::SAFE_MODE;
+}
+
 void Runtime::attachEventBus(EventBus* bus) {
     event_bus_ = bus;
 }

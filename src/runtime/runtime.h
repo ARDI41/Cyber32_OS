@@ -19,6 +19,9 @@ public:
     void begin();
     void setState(RuntimeState state);
     RuntimeState state() const;
+    bool enterSafeMode();
+    bool exitSafeMode();
+    bool isSafeMode() const;
     void attachEventBus(EventBus* bus);
     void attachRegistry(Registry* registry);
     bool registerTask(const RuntimeTask& task);
