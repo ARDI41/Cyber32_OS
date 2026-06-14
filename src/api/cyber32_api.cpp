@@ -56,6 +56,22 @@ bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
     return true;
 }
 
+bool Cyber32Api::getDistanceState(ApiCapabilityState& out_state) {
+    if (registry_ == 0) {
+        fillUnavailableDistanceState(out_state);
+        return false;
+    }
+
+    if (!registry_->getCapabilityPayload(CAP_DISTANCE, out_state.payload)) {
+        fillUnavailableDistanceState(out_state);
+        return false;
+    }
+
+    out_state.ok = true;
+    out_state.error_code = "none";
+    return true;
+}
+
 void Cyber32Api::fillUnavailableTemperatureState(ApiCapabilityState& out_state) const {
     out_state.ok = false;
     out_state.payload.capability_id = CAP_TEMPERATURE;
@@ -67,6 +83,22 @@ void Cyber32Api::fillUnavailableTemperatureState(ApiCapabilityState& out_state) 
     out_state.payload.value_float = 0.0F;
     out_state.payload.value_int = 0;
     out_state.payload.unit = "degree_celsius";
+    out_state.payload.quality = "unavailable";
+    out_state.payload.error_code = ERR_CAPABILITY_UNAVAILABLE;
+    out_state.error_code = ERR_CAPABILITY_UNAVAILABLE;
+}
+
+void Cyber32Api::fillUnavailableDistanceState(ApiCapabilityState& out_state) const {
+    out_state.ok = false;
+    out_state.payload.capability_id = CAP_DISTANCE;
+    out_state.payload.schema_version = 1;
+    out_state.payload.timestamp_ms = 0;
+    out_state.payload.available = Availability::UNAVAILABLE;
+    out_state.payload.stale = StaleState::STALE;
+    out_state.payload.value_type = PayloadValueType::NONE;
+    out_state.payload.value_float = 0.0F;
+    out_state.payload.value_int = 0;
+    out_state.payload.unit = "meter";
     out_state.payload.quality = "unavailable";
     out_state.payload.error_code = ERR_CAPABILITY_UNAVAILABLE;
     out_state.error_code = ERR_CAPABILITY_UNAVAILABLE;

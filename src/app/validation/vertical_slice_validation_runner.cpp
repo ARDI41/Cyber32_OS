@@ -18,7 +18,7 @@ bool VerticalSliceValidationRunner::update(uint32_t now_ms) {
         return result_;
     }
 
-    result_ = validation_.runOnce(now_ms);
+    result_ = validation_.runOnceWithRuntime(now_ms);
     has_run_ = true;
     return result_;
 }

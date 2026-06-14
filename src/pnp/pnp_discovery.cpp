@@ -1,6 +1,7 @@
 #include "pnp_discovery.h"
 
 #include "../core/ids/event_ids.h"
+#include "../modules/sensing/sim_distance_module.h"
 #include "../modules/sensing/sim_temperature_module.h"
 
 namespace Cyber32 {
@@ -15,6 +16,27 @@ void PnpDiscovery::attachEventBus(EventBus* bus) {
 
 bool PnpDiscovery::discoverSimulatedTemperatureModule(PnpModuleInfo& out_info) {
     SimTemperatureModule module;
+
+    out_info.module_id = module.id();
+    out_info.module_type = module.type();
+    out_info.metadata_level = module.metadataLevel();
+    out_info.display_name = module.displayName();
+    out_info.device_id = module.deviceId();
+    out_info.device_type = module.deviceType();
+    out_info.capability_id = module.capabilityId();
+    out_info.valid = false;
+
+    if (!validateInfo(out_info)) {
+        return false;
+    }
+
+    out_info.valid = true;
+    publishModuleDiscovered(out_info);
+    return true;
+}
+
+bool PnpDiscovery::discoverSimulatedDistanceModule(PnpModuleInfo& out_info) {
+    SimDistanceModule module;
 
     out_info.module_id = module.id();
     out_info.module_type = module.type();
