@@ -10,7 +10,8 @@ enum class RuntimeState : unsigned char {
     STARTING,
     READY,
     RUNNING,
-    ERROR_STATE
+    ERROR_STATE,
+    SAFE_MODE
 };
 
 }  // namespace Cyber32

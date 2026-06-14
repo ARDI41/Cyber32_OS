@@ -650,6 +650,9 @@ bool VerticalSliceValidation::validateServoCommandState(uint32_t now_ms) {
     if (!validateServoRuntimeBlockedState(RuntimeState::ERROR_STATE, now_ms, 45.0F)) {
         return false;
     }
+    if (!validateServoRuntimeBlockedState(RuntimeState::SAFE_MODE, now_ms, 45.0F)) {
+        return false;
+    }
 
     runtime_.setState(RuntimeState::RUNNING);
     command_request.position_degrees = 90.0F;

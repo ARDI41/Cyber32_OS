@@ -128,7 +128,20 @@ bool ServoService::runtimeAllowsActuatorCommands() const {
     }
 
     const RuntimeState state = runtime_->state();
-    return state == RuntimeState::READY || state == RuntimeState::RUNNING;
+    switch (state) {
+        case RuntimeState::READY:
+        case RuntimeState::RUNNING:
+            return true;
+        case RuntimeState::BOOTING:
+        case RuntimeState::INITIALIZING:
+        case RuntimeState::DISCOVERING:
+        case RuntimeState::REGISTERING:
+        case RuntimeState::STARTING:
+        case RuntimeState::ERROR_STATE:
+        case RuntimeState::SAFE_MODE:
+        default:
+            return false;
+    }
 }
 
 void ServoService::fillFailedResult(
