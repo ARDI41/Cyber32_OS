@@ -11,7 +11,9 @@ MotorService::MotorService()
       device_(0),
       runtime_(0),
       last_registry_result_(RegistryResult::NOT_ATTACHED),
-      last_command_state_(CommandState::REQUEST) {
+      last_command_state_(CommandState::REQUEST),
+      pending_command_() {
+    clearPendingCommand();
 }
 
 bool MotorService::begin(Registry* registry, SimMotorDevice* device) {
@@ -23,6 +25,7 @@ bool MotorService::begin(Registry* registry, SimMotorDevice* device) {
     device_ = device;
     last_registry_result_ = RegistryResult::OK;
     last_command_state_ = CommandState::REQUEST;
+    clearPendingCommand();
     return true;
 }
 
@@ -64,7 +67,7 @@ bool MotorService::setMotor(
         return false;
     }
 
-    if (!runtimeAllowsActuatorCommands()) {
+    if (!runtimeAllowsMotorCommand(request.direction, request.speed_percent)) {
         last_registry_result_ = RegistryResult::OK;
         fillFailedResult(
             now_ms,
@@ -86,48 +89,122 @@ bool MotorService::setMotor(
         return false;
     }
 
+    if (!isValidCommandTimeout(request.timeout_ms)) {
+        last_registry_result_ = RegistryResult::INVALID_RECORD;
+        fillFailedResult(
+            now_ms,
+            request.direction,
+            request.speed_percent,
+            out_result,
+            ERR_CAPABILITY_UNAVAILABLE);
+        return false;
+    }
+
+    if (hasPendingCommand()) {
+        if (!isStopCommand(request.direction, request.speed_percent)) {
+            last_registry_result_ = RegistryResult::UNAVAILABLE;
+            fillFailedResult(
+                now_ms,
+                request.direction,
+                request.speed_percent,
+                out_result,
+                ERR_CAPABILITY_UNAVAILABLE);
+            return false;
+        }
+    }
+
+    pending_command_.occupied = true;
+    pending_command_.direction = request.direction;
+    pending_command_.speed_percent = request.speed_percent;
+    pending_command_.requested_at_ms = now_ms;
+    pending_command_.timeout_ms = request.timeout_ms;
+    pending_command_.state = CommandState::ACCEPTED;
+    pending_command_.error_code = "none";
+
     out_result.accepted = true;
     out_result.executed = false;
-    out_result.state = CommandState::EXECUTING;
+    out_result.state = CommandState::ACCEPTED;
     out_result.error_code = "none";
     out_result.registry_result = RegistryResult::OK;
-    last_command_state_ = CommandState::EXECUTING;
+    last_registry_result_ = RegistryResult::OK;
+    last_command_state_ = CommandState::ACCEPTED;
+    writeCommandState(
+        now_ms,
+        CommandState::ACCEPTED,
+        last_registry_result_,
+        "none",
+        request.direction,
+        request.speed_percent);
+    return true;
+}
+
+bool MotorService::executePendingCommand(uint32_t now_ms) {
+    if (!hasPendingCommand()) {
+        return false;
+    }
+
+    const MotorDirection direction = pending_command_.direction;
+    const float speed_percent = pending_command_.speed_percent;
+    const uint32_t requested_at_ms = pending_command_.requested_at_ms;
+    const uint32_t timeout_ms = pending_command_.timeout_ms;
+
+    if (isTimedOut(now_ms, requested_at_ms, timeout_ms)) {
+        last_registry_result_ = RegistryResult::OK;
+        last_command_state_ = CommandState::TIMED_OUT;
+        writeCommandState(
+            now_ms,
+            CommandState::TIMED_OUT,
+            last_registry_result_,
+            ERR_CAPABILITY_UNAVAILABLE,
+            direction,
+            speed_percent);
+        clearPendingCommand();
+        return false;
+    }
+
+    if (!runtimeAllowsMotorCommand(direction, speed_percent)) {
+        last_registry_result_ = RegistryResult::OK;
+        last_command_state_ = CommandState::FAILED;
+        writeCommandState(
+            now_ms,
+            CommandState::FAILED,
+            last_registry_result_,
+            ERR_CAPABILITY_UNAVAILABLE,
+            direction,
+            speed_percent);
+        clearPendingCommand();
+        return false;
+    }
 
     CapabilityPayload payload;
-    const bool command_success = device_->setMotor(
-        now_ms,
-        request.direction,
-        request.speed_percent,
-        payload);
-    last_registry_result_ = registry_->updateCapabilityPayloadWithResult(CAP_MOTOR_CONTROL, payload);
-    out_result.registry_result = last_registry_result_;
+    const bool command_success = device_ != 0 &&
+        device_->setMotor(now_ms, direction, speed_percent, payload);
+    last_registry_result_ = registry_ == 0
+        ? RegistryResult::NOT_ATTACHED
+        : registry_->updateCapabilityPayloadWithResult(CAP_MOTOR_CONTROL, payload);
 
     if (command_success && last_registry_result_ == RegistryResult::OK) {
-        out_result.state = CommandState::COMPLETED;
-        out_result.executed = true;
-        out_result.error_code = "none";
         last_command_state_ = CommandState::COMPLETED;
         writeCommandState(
             now_ms,
             CommandState::COMPLETED,
             last_registry_result_,
             "none",
-            request.direction,
-            request.speed_percent);
+            direction,
+            speed_percent);
+        clearPendingCommand();
         return true;
     }
 
-    out_result.state = CommandState::FAILED;
-    out_result.executed = false;
-    out_result.error_code = command_success ? ERR_CAPABILITY_UNAVAILABLE : ERR_DEVICE_TIMEOUT;
     last_command_state_ = CommandState::FAILED;
     writeCommandState(
         now_ms,
         CommandState::FAILED,
         last_registry_result_,
-        out_result.error_code,
-        request.direction,
-        request.speed_percent);
+        command_success ? ERR_CAPABILITY_UNAVAILABLE : ERR_DEVICE_TIMEOUT,
+        direction,
+        speed_percent);
+    clearPendingCommand();
     return false;
 }
 
@@ -150,7 +227,7 @@ bool MotorService::stop(uint32_t now_ms, MotorCommandResult& out_result) {
         return false;
     }
 
-    if (!runtimeAllowsActuatorCommands()) {
+    if (!runtimeAllowsMotorCommand(request.direction, request.speed_percent)) {
         last_registry_result_ = RegistryResult::OK;
         fillFailedResult(
             now_ms,
@@ -210,6 +287,20 @@ CommandState MotorService::lastCommandState() const {
     return last_command_state_;
 }
 
+bool MotorService::hasPendingCommand() const {
+    return pending_command_.occupied;
+}
+
+void MotorService::clearPendingCommand() {
+    pending_command_.occupied = false;
+    pending_command_.direction = MotorDirection::STOP;
+    pending_command_.speed_percent = 0.0F;
+    pending_command_.requested_at_ms = 0;
+    pending_command_.timeout_ms = 0;
+    pending_command_.state = CommandState::REQUEST;
+    pending_command_.error_code = "none";
+}
+
 bool MotorService::isValidMotorRequest(MotorDirection direction, float speed_percent) const {
     if (speed_percent < 0.0F || speed_percent > 100.0F) {
         return false;
@@ -226,7 +317,22 @@ bool MotorService::isValidMotorRequest(MotorDirection direction, float speed_per
     }
 }
 
-bool MotorService::runtimeAllowsActuatorCommands() const {
+bool MotorService::isValidCommandTimeout(uint32_t timeout_ms) const {
+    return timeout_ms >= 1 && timeout_ms <= 10000;
+}
+
+bool MotorService::isTimedOut(
+    uint32_t now_ms,
+    uint32_t requested_at_ms,
+    uint32_t timeout_ms) const {
+    return (now_ms - requested_at_ms) >= timeout_ms;
+}
+
+bool MotorService::isStopCommand(MotorDirection direction, float speed_percent) const {
+    return direction == MotorDirection::STOP && speed_percent == 0.0F;
+}
+
+bool MotorService::runtimeAllowsMotorCommand(MotorDirection direction, float speed_percent) const {
     if (runtime_ == 0) {
         return false;
     }
@@ -236,13 +342,14 @@ bool MotorService::runtimeAllowsActuatorCommands() const {
         case RuntimeState::READY:
         case RuntimeState::RUNNING:
             return true;
+        case RuntimeState::SAFE_MODE:
+            return isStopCommand(direction, speed_percent);
         case RuntimeState::BOOTING:
         case RuntimeState::INITIALIZING:
         case RuntimeState::DISCOVERING:
         case RuntimeState::REGISTERING:
         case RuntimeState::STARTING:
         case RuntimeState::ERROR_STATE:
-        case RuntimeState::SAFE_MODE:
         default:
             return false;
     }

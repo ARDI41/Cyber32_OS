@@ -83,6 +83,14 @@ private:
         const char* last_error;
     };
 
+    struct MotorServiceCommandTaskContext {
+        MotorService* service;
+        uint32_t now_ms;
+        bool ran;
+        bool last_result;
+        const char* last_error;
+    };
+
     EventBus event_bus_;
     Registry registry_;
     Runtime runtime_;
@@ -110,6 +118,7 @@ private:
     DistanceLogicTaskContext distance_logic_task_context_;
     ServoServiceStateTaskContext servo_service_state_task_context_;
     MotorServiceStateTaskContext motor_service_state_task_context_;
+    MotorServiceCommandTaskContext motor_service_command_task_context_;
     bool passed_;
     const char* last_error_;
 
@@ -119,6 +128,7 @@ private:
     static void runDistanceLogicTask(void* context);
     static void runServoServiceStateTask(void* context);
     static void runMotorServiceStateTask(void* context);
+    static void runMotorServiceCommandTask(void* context);
 
     bool registerRuntimeTasks();
     bool fail(const char* error);

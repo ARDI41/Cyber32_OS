@@ -24,6 +24,16 @@ struct MotorCommandResult {
     const char* error_code;
 };
 
+struct MotorPendingCommand {
+    bool occupied;
+    MotorDirection direction;
+    float speed_percent;
+    uint32_t requested_at_ms;
+    uint32_t timeout_ms;
+    CommandState state;
+    const char* error_code;
+};
+
 class MotorService {
 public:
     MotorService();
@@ -33,9 +43,12 @@ public:
     const char* id() const;
     bool updateState(uint32_t now_ms);
     bool setMotor(uint32_t now_ms, const MotorCommandRequest& request, MotorCommandResult& out_result);
+    bool executePendingCommand(uint32_t now_ms);
     bool stop(uint32_t now_ms, MotorCommandResult& out_result);
     RegistryResult lastRegistryResult() const;
     CommandState lastCommandState() const;
+    bool hasPendingCommand() const;
+    void clearPendingCommand();
 
 private:
     Registry* registry_;
@@ -43,9 +56,13 @@ private:
     Runtime* runtime_;
     RegistryResult last_registry_result_;
     CommandState last_command_state_;
+    MotorPendingCommand pending_command_;
 
     bool isValidMotorRequest(MotorDirection direction, float speed_percent) const;
-    bool runtimeAllowsActuatorCommands() const;
+    bool isValidCommandTimeout(uint32_t timeout_ms) const;
+    bool isTimedOut(uint32_t now_ms, uint32_t requested_at_ms, uint32_t timeout_ms) const;
+    bool isStopCommand(MotorDirection direction, float speed_percent) const;
+    bool runtimeAllowsMotorCommand(MotorDirection direction, float speed_percent) const;
     void fillFailedResult(
         uint32_t now_ms,
         MotorDirection direction,
