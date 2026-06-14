@@ -29,22 +29,20 @@ bool PnpRegistration::registerModuleInfo(const PnpModuleInfo& info) {
     }
 
     ModuleRecord module_record = createModuleRecord(info);
-    if (!registry_->registerModule(module_record)) {
+    RegistryWriteResult module_result = registry_->registerModuleWithResult(module_record);
+    if (module_result.result != RegistryResult::OK) {
         return false;
     }
 
-    const uint8_t registered_module_index = registry_->moduleCount() - 1;
-
-    DeviceRecord device_record = createDeviceRecord(info, registered_module_index);
-    if (!registry_->registerDevice(device_record)) {
+    DeviceRecord device_record = createDeviceRecord(info, module_result.index);
+    RegistryWriteResult device_result = registry_->registerDeviceWithResult(device_record);
+    if (device_result.result != RegistryResult::OK) {
         return false;
     }
 
-    // TODO: Replace count-derived owner index with an explicit Registry registration result before multi-provider v1.
-    const uint8_t registered_device_index = registry_->deviceCount() - 1;
-
-    CapabilityRecord capability_record = createCapabilityRecord(info.capability_id, registered_device_index);
-    return registry_->registerCapability(capability_record);
+    CapabilityRecord capability_record = createCapabilityRecord(info.capability_id, device_result.index);
+    RegistryWriteResult capability_result = registry_->registerCapabilityWithResult(capability_record);
+    return capability_result.result == RegistryResult::OK;
 }
 
 ModuleRecord PnpRegistration::createModuleRecord(const PnpModuleInfo& info) const {
@@ -77,7 +75,13 @@ CapabilityPayload PnpRegistration::createInitialPayload(const char* capability_i
     payload.value_type = PayloadValueType::NONE;
     payload.value_float = 0.0F;
     payload.value_int = 0;
-    payload.unit = isSameId(capability_id, CAP_DISTANCE) ? "meter" : "degree_celsius";
+    if (isSameId(capability_id, CAP_DISTANCE)) {
+        payload.unit = "meter";
+    } else if (isSameId(capability_id, CAP_SERVO_POSITION)) {
+        payload.unit = "degree";
+    } else {
+        payload.unit = "degree_celsius";
+    }
     payload.quality = "stale";
     payload.error_code = "none";
     return payload;
@@ -88,10 +92,16 @@ CapabilityRecord PnpRegistration::createCapabilityRecord(
     uint8_t owner_device_index) const {
     CapabilityRecord record;
     record.capability_id = capability_id;
-    record.category = "sensors";
-    record.kind = "sensor";
+    if (isSameId(capability_id, CAP_SERVO_POSITION)) {
+        record.category = "actuators";
+        record.kind = "actuator";
+        record.access = "read_write";
+    } else {
+        record.category = "sensors";
+        record.kind = "sensor";
+        record.access = "read";
+    }
     record.data_type = PayloadValueType::FLOAT;
-    record.access = "read";
     record.status = RecordStatus::AVAILABLE;
     record.owner_device_index = owner_device_index;
     record.latest_payload = createInitialPayload(capability_id);
@@ -100,7 +110,8 @@ CapabilityRecord PnpRegistration::createCapabilityRecord(
 
 bool PnpRegistration::isSupportedCapability(const char* capability_id) const {
     return isSameId(capability_id, CAP_TEMPERATURE) ||
-           isSameId(capability_id, CAP_DISTANCE);
+           isSameId(capability_id, CAP_DISTANCE) ||
+           isSameId(capability_id, CAP_SERVO_POSITION);
 }
 
 bool PnpRegistration::isSameId(const char* left, const char* right) const {

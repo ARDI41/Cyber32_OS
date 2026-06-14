@@ -7,7 +7,8 @@ namespace Cyber32 {
 
 TemperatureService::TemperatureService()
     : registry_(0),
-      device_(0) {
+      device_(0),
+      last_registry_result_(RegistryResult::NOT_ATTACHED) {
 }
 
 bool TemperatureService::begin(Registry* registry, SimTemperatureDevice* device) {
@@ -22,18 +23,23 @@ bool TemperatureService::begin(Registry* registry, SimTemperatureDevice* device)
 
 bool TemperatureService::update(uint32_t now_ms) {
     if (registry_ == 0 || device_ == 0) {
+        last_registry_result_ = RegistryResult::NOT_ATTACHED;
         return false;
     }
 
     CapabilityPayload payload;
     const bool read_success = device_->readPayload(now_ms, payload);
-    const bool registry_success = registry_->updateCapabilityPayload(CAP_TEMPERATURE, payload);
+    last_registry_result_ = registry_->updateCapabilityPayloadWithResult(CAP_TEMPERATURE, payload);
 
-    return read_success && registry_success;
+    return read_success && last_registry_result_ == RegistryResult::OK;
 }
 
 const char* TemperatureService::id() const {
     return SERVICE_TEMPERATURE;
+}
+
+RegistryResult TemperatureService::lastRegistryResult() const {
+    return last_registry_result_;
 }
 
 }  // namespace Cyber32

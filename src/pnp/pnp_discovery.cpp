@@ -1,6 +1,7 @@
 #include "pnp_discovery.h"
 
 #include "../core/ids/event_ids.h"
+#include "../modules/actuators/sim_servo_module.h"
 #include "../modules/sensing/sim_distance_module.h"
 #include "../modules/sensing/sim_temperature_module.h"
 
@@ -37,6 +38,27 @@ bool PnpDiscovery::discoverSimulatedTemperatureModule(PnpModuleInfo& out_info) {
 
 bool PnpDiscovery::discoverSimulatedDistanceModule(PnpModuleInfo& out_info) {
     SimDistanceModule module;
+
+    out_info.module_id = module.id();
+    out_info.module_type = module.type();
+    out_info.metadata_level = module.metadataLevel();
+    out_info.display_name = module.displayName();
+    out_info.device_id = module.deviceId();
+    out_info.device_type = module.deviceType();
+    out_info.capability_id = module.capabilityId();
+    out_info.valid = false;
+
+    if (!validateInfo(out_info)) {
+        return false;
+    }
+
+    out_info.valid = true;
+    publishModuleDiscovered(out_info);
+    return true;
+}
+
+bool PnpDiscovery::discoverSimulatedServoModule(PnpModuleInfo& out_info) {
+    SimServoModule module;
 
     out_info.module_id = module.id();
     out_info.module_type = module.type();

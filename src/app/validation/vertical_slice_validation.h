@@ -4,8 +4,10 @@
 
 #include "../../api/cyber32_api.h"
 #include "../../core/event_bus/event_bus.h"
+#include "../../devices/actuators/sim_servo_device.h"
 #include "../../devices/sensors/sim_distance_device.h"
 #include "../../devices/sensors/sim_temperature_device.h"
+#include "../../drivers/actuators/sim_servo_driver.h"
 #include "../../drivers/sensors/sim_distance_driver.h"
 #include "../../drivers/sensors/sim_temperature_driver.h"
 #include "../../hal/time/hal_time.h"
@@ -16,6 +18,7 @@
 #include "../../registry/registry.h"
 #include "../../runtime/runtime.h"
 #include "../../services/distance/distance_service.h"
+#include "../../services/servo/servo_service.h"
 #include "../../services/temperature/temperature_service.h"
 
 namespace Cyber32 {
@@ -61,6 +64,14 @@ private:
         const char* last_error;
     };
 
+    struct ServoServiceStateTaskContext {
+        ServoService* service;
+        uint32_t now_ms;
+        bool ran;
+        bool last_result;
+        const char* last_error;
+    };
+
     EventBus event_bus_;
     Registry registry_;
     Runtime runtime_;
@@ -69,17 +80,21 @@ private:
     SimTemperatureDevice device_;
     SimDistanceDriver distance_driver_;
     SimDistanceDevice distance_device_;
+    SimServoDriver servo_driver_;
+    SimServoDevice servo_device_;
     PnpDiscovery pnp_discovery_;
     PnpRegistration pnp_registration_;
     TemperatureService temperature_service_;
     TemperatureLogic temperature_logic_;
     DistanceService distance_service_;
     DistanceLogic distance_logic_;
+    ServoService servo_service_;
     Cyber32Api api_;
     TemperatureServiceTaskContext service_task_context_;
     TemperatureLogicTaskContext logic_task_context_;
     DistanceServiceTaskContext distance_service_task_context_;
     DistanceLogicTaskContext distance_logic_task_context_;
+    ServoServiceStateTaskContext servo_service_state_task_context_;
     bool passed_;
     const char* last_error_;
 
@@ -87,15 +102,21 @@ private:
     static void runTemperatureLogicTask(void* context);
     static void runDistanceServiceTask(void* context);
     static void runDistanceLogicTask(void* context);
+    static void runServoServiceStateTask(void* context);
 
     bool registerRuntimeTasks();
     bool fail(const char* error);
     bool validateRegistryState();
     bool validateTemperaturePayload(const CapabilityPayload& payload);
     bool validateDistancePayload(const CapabilityPayload& payload);
+    bool validateServoPayload(const CapabilityPayload& payload, float expected_position);
     bool validateLogicState();
     bool validateApiState();
+    bool validateServoCommandState(uint32_t now_ms);
+    bool validateServoRuntimeBlockedState(RuntimeState state, uint32_t now_ms, float expected_position);
     bool validateRuntimeTaskState();
+    bool validateRegistryResultState();
+    bool isSameText(const char* left, const char* right) const;
 };
 
 }  // namespace Cyber32

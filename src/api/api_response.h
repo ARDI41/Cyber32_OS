@@ -2,8 +2,10 @@
 
 #include <stdint.h>
 
+#include "../core/types/command_types.h"
 #include "../core/types/runtime_state.h"
 #include "../registry/registry_records.h"
+#include "../registry/registry_result.h"
 
 namespace Cyber32 {
 
@@ -20,6 +22,30 @@ struct ApiCapabilityState {
     bool ok;
     CapabilityPayload payload;
     const char* error_code;
+};
+
+struct ApiServoCommandRequest {
+    float position_degrees;
+    uint32_t timeout_ms;
+};
+
+struct ApiServoCommandResponse {
+    bool ok;
+    CommandState command_state;
+    bool accepted;
+    bool executed;
+    const char* error_code;
+};
+
+struct ApiCommandStateResponse {
+    bool ok;
+    CommandState command_state;
+    RegistryResult registry_result;
+    const char* capability_id;
+    const char* error_code;
+    float value_float;
+    int32_t value_int;
+    uint32_t timestamp_ms;
 };
 
 }  // namespace Cyber32

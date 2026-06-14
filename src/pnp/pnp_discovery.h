@@ -24,6 +24,7 @@ public:
     void attachEventBus(EventBus* bus);
     bool discoverSimulatedTemperatureModule(PnpModuleInfo& out_info);
     bool discoverSimulatedDistanceModule(PnpModuleInfo& out_info);
+    bool discoverSimulatedServoModule(PnpModuleInfo& out_info);
 
 private:
     EventBus* event_bus_;

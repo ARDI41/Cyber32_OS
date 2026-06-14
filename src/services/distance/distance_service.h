@@ -14,10 +14,12 @@ public:
     bool begin(Registry* registry, SimDistanceDevice* device);
     bool update(uint32_t now_ms);
     const char* id() const;
+    RegistryResult lastRegistryResult() const;
 
 private:
     Registry* registry_;
     SimDistanceDevice* device_;
+    RegistryResult last_registry_result_;
 };
 
 }  // namespace Cyber32
