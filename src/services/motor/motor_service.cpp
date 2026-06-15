@@ -148,6 +148,11 @@ bool MotorService::executePendingCommand(uint32_t now_ms) {
     const uint32_t requested_at_ms = pending_command_.requested_at_ms;
     const uint32_t timeout_ms = pending_command_.timeout_ms;
 
+    if (!pendingCommandAllowedInCurrentRuntime()) {
+        failPendingCommand(now_ms, ERR_CAPABILITY_UNAVAILABLE);
+        return false;
+    }
+
     if (isTimedOut(now_ms, requested_at_ms, timeout_ms)) {
         last_registry_result_ = RegistryResult::OK;
         last_command_state_ = CommandState::TIMED_OUT;
@@ -206,6 +211,38 @@ bool MotorService::executePendingCommand(uint32_t now_ms) {
         speed_percent);
     clearPendingCommand();
     return false;
+}
+
+bool MotorService::failPendingCommand(uint32_t now_ms, const char* error_code) {
+    if (!hasPendingCommand()) {
+        return false;
+    }
+
+    const MotorDirection direction = pending_command_.direction;
+    const float speed_percent = pending_command_.speed_percent;
+    const char* compact_error_code = error_code == 0 ? ERR_CAPABILITY_UNAVAILABLE : error_code;
+
+    last_command_state_ = CommandState::FAILED;
+
+    if (registry_ == 0) {
+        last_registry_result_ = RegistryResult::NOT_ATTACHED;
+        clearPendingCommand();
+        return false;
+    }
+
+    CommandStateRecord record;
+    record.capability_id = CAP_MOTOR_CONTROL;
+    record.command_state = CommandState::FAILED;
+    record.timestamp_ms = now_ms;
+    record.registry_result = RegistryResult::OK;
+    record.error_code = compact_error_code;
+    record.value_float = speed_percent;
+    record.value_int = static_cast<int32_t>(direction);
+
+    const RegistryResult write_result = registry_->updateCommandState(record);
+    last_registry_result_ = write_result;
+    clearPendingCommand();
+    return write_result == RegistryResult::OK;
 }
 
 bool MotorService::stop(uint32_t now_ms, MotorCommandResult& out_result) {
@@ -353,6 +390,16 @@ bool MotorService::runtimeAllowsMotorCommand(MotorDirection direction, float spe
         default:
             return false;
     }
+}
+
+bool MotorService::pendingCommandAllowedInCurrentRuntime() const {
+    if (!hasPendingCommand()) {
+        return false;
+    }
+
+    return runtimeAllowsMotorCommand(
+        pending_command_.direction,
+        pending_command_.speed_percent);
 }
 
 void MotorService::fillFailedResult(

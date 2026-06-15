@@ -1329,15 +1329,230 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateMotorPendingRuntimeTransitions(now_ms)) {
+        return false;
+    }
+
     if (!validateMotorRuntimeBlockedState(
             RuntimeState::SAFE_MODE,
-            now_ms + 90,
+            now_ms + 120,
             0.0F,
             MotorDirection::STOP)) {
         return false;
     }
 
     runtime_.setState(RuntimeState::RUNNING);
+    return true;
+}
+
+bool VerticalSliceValidation::validateMotorPendingRuntimeTransitions(uint32_t now_ms) {
+    runtime_.setState(RuntimeState::READY);
+
+    ApiCapabilityState motor_state;
+    if (!api_.getMotorControlState(motor_state)) {
+        return fail("api_motor_transition_initial_read_failed");
+    }
+    if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
+        return false;
+    }
+
+    ApiMotorCommandRequest command_request;
+    command_request.direction = MotorDirection::FORWARD;
+    command_request.speed_percent = 35.0F;
+    command_request.timeout_ms = 1000;
+
+    ApiMotorCommandResponse command_response;
+    if (!api_.commandMotorControl(now_ms, command_request, command_response)) {
+        return fail("api_motor_safe_transition_accept_failed");
+    }
+    if (!command_response.ok) {
+        return fail("api_motor_safe_transition_not_ok");
+    }
+    if (command_response.command_state != CommandState::ACCEPTED) {
+        return fail("api_motor_safe_transition_state_invalid");
+    }
+    if (!command_response.accepted || command_response.executed) {
+        return fail("api_motor_safe_transition_flags_invalid");
+    }
+
+    if (!runtime_.enterSafeMode()) {
+        return fail("runtime_safe_transition_enter_failed");
+    }
+
+    const uint32_t safe_transition_execution_ms = now_ms + 80;
+    motor_service_command_task_context_.now_ms = safe_transition_execution_ms;
+    motor_service_command_task_context_.ran = false;
+    motor_service_command_task_context_.last_result = true;
+    motor_service_command_task_context_.last_error = "not_run";
+    runtime_.update(safe_transition_execution_ms);
+
+    if (!motor_service_command_task_context_.ran) {
+        return fail("motor_safe_transition_task_not_run");
+    }
+    if (motor_service_command_task_context_.last_result) {
+        return fail("motor_safe_transition_completed");
+    }
+
+    ApiCommandStateResponse command_state_response;
+    if (!api_.getMotorCommandState(command_state_response)) {
+        return fail("api_motor_safe_transition_state_read_failed");
+    }
+    if (!command_state_response.ok) {
+        return fail("api_motor_safe_transition_state_not_ok");
+    }
+    if (command_state_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_safe_transition_not_failed");
+    }
+    if (command_state_response.value_float != 35.0F) {
+        return fail("api_motor_safe_transition_value_invalid");
+    }
+    if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
+        return fail("api_motor_safe_transition_direction_invalid");
+    }
+    if (isSameText(command_state_response.error_code, "none")) {
+        return fail("api_motor_safe_transition_error_invalid");
+    }
+    if (motor_service_.hasPendingCommand()) {
+        return fail("motor_safe_transition_pending_not_cleared");
+    }
+
+    if (!api_.getMotorControlState(motor_state)) {
+        return fail("api_motor_safe_transition_payload_read_failed");
+    }
+    if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
+        return false;
+    }
+
+    if (!runtime_.exitSafeMode()) {
+        return fail("runtime_safe_transition_exit_failed");
+    }
+
+    command_request.direction = MotorDirection::FORWARD;
+    command_request.speed_percent = 45.0F;
+    command_request.timeout_ms = 1000;
+    if (!api_.commandMotorControl(now_ms + 81, command_request, command_response)) {
+        return fail("api_motor_error_transition_accept_failed");
+    }
+    if (!command_response.ok) {
+        return fail("api_motor_error_transition_not_ok");
+    }
+    if (command_response.command_state != CommandState::ACCEPTED) {
+        return fail("api_motor_error_transition_state_invalid");
+    }
+    if (!command_response.accepted || command_response.executed) {
+        return fail("api_motor_error_transition_flags_invalid");
+    }
+
+    runtime_.setState(RuntimeState::ERROR_STATE);
+
+    const uint32_t error_transition_execution_ms = now_ms + 90;
+    motor_service_command_task_context_.now_ms = error_transition_execution_ms;
+    motor_service_command_task_context_.ran = false;
+    motor_service_command_task_context_.last_result = true;
+    motor_service_command_task_context_.last_error = "not_run";
+    runtime_.update(error_transition_execution_ms);
+
+    if (!motor_service_command_task_context_.ran) {
+        return fail("motor_error_transition_task_not_run");
+    }
+    if (motor_service_command_task_context_.last_result) {
+        return fail("motor_error_transition_completed");
+    }
+
+    if (!api_.getMotorCommandState(command_state_response)) {
+        return fail("api_motor_error_transition_state_read_failed");
+    }
+    if (!command_state_response.ok) {
+        return fail("api_motor_error_transition_state_not_ok");
+    }
+    if (command_state_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_error_transition_not_failed");
+    }
+    if (command_state_response.value_float != 45.0F) {
+        return fail("api_motor_error_transition_value_invalid");
+    }
+    if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
+        return fail("api_motor_error_transition_direction_invalid");
+    }
+    if (isSameText(command_state_response.error_code, "none")) {
+        return fail("api_motor_error_transition_error_invalid");
+    }
+    if (motor_service_.hasPendingCommand()) {
+        return fail("motor_error_transition_pending_not_cleared");
+    }
+
+    if (!api_.getMotorControlState(motor_state)) {
+        return fail("api_motor_error_transition_payload_read_failed");
+    }
+    if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
+        return false;
+    }
+
+    runtime_.setState(RuntimeState::READY);
+    if (!runtime_.enterSafeMode()) {
+        return fail("runtime_safe_stop_enter_failed");
+    }
+
+    command_request.direction = MotorDirection::STOP;
+    command_request.speed_percent = 0.0F;
+    command_request.timeout_ms = 1000;
+    if (!api_.commandMotorControl(now_ms + 91, command_request, command_response)) {
+        return fail("api_motor_safe_transition_stop_failed");
+    }
+    if (!command_response.ok) {
+        return fail("api_motor_safe_transition_stop_not_ok");
+    }
+    if (command_response.command_state != CommandState::ACCEPTED) {
+        return fail("api_motor_safe_transition_stop_state_invalid");
+    }
+    if (!command_response.accepted || command_response.executed) {
+        return fail("api_motor_safe_transition_stop_flags_invalid");
+    }
+
+    const uint32_t safe_stop_execution_ms = now_ms + 100;
+    motor_service_command_task_context_.now_ms = safe_stop_execution_ms;
+    motor_service_command_task_context_.ran = false;
+    motor_service_command_task_context_.last_result = false;
+    motor_service_command_task_context_.last_error = "not_run";
+    runtime_.update(safe_stop_execution_ms);
+
+    if (!motor_service_command_task_context_.ran) {
+        return fail("motor_safe_transition_stop_task_not_run");
+    }
+    if (!motor_service_command_task_context_.last_result) {
+        return fail(motor_service_command_task_context_.last_error);
+    }
+
+    if (!api_.getMotorCommandState(command_state_response)) {
+        return fail("api_motor_safe_transition_stop_state_read_failed");
+    }
+    if (!command_state_response.ok) {
+        return fail("api_motor_safe_transition_stop_state_not_ok");
+    }
+    if (command_state_response.command_state != CommandState::COMPLETED) {
+        return fail("api_motor_safe_transition_stop_not_completed");
+    }
+    if (command_state_response.value_float != 0.0F) {
+        return fail("api_motor_safe_transition_stop_value_invalid");
+    }
+    if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::STOP)) {
+        return fail("api_motor_safe_transition_stop_direction_invalid");
+    }
+    if (!isSameText(command_state_response.error_code, "none")) {
+        return fail("api_motor_safe_transition_stop_error_invalid");
+    }
+    if (motor_service_.hasPendingCommand()) {
+        return fail("motor_safe_transition_stop_pending_not_cleared");
+    }
+
+    if (!api_.getMotorControlState(motor_state)) {
+        return fail("api_motor_safe_transition_stop_payload_read_failed");
+    }
+    if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
+        return false;
+    }
+
+    runtime_.setState(RuntimeState::READY);
     return true;
 }
 

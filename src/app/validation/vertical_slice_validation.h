@@ -150,6 +150,7 @@ private:
         uint32_t now_ms,
         float expected_speed,
         MotorDirection expected_direction);
+    bool validateMotorPendingRuntimeTransitions(uint32_t now_ms);
     bool validateRuntimeSafeModeHelpers();
     bool validateRuntimeTaskState();
     bool validateRegistryResultState();

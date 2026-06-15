@@ -44,6 +44,7 @@ public:
     bool updateState(uint32_t now_ms);
     bool setMotor(uint32_t now_ms, const MotorCommandRequest& request, MotorCommandResult& out_result);
     bool executePendingCommand(uint32_t now_ms);
+    bool failPendingCommand(uint32_t now_ms, const char* error_code);
     bool stop(uint32_t now_ms, MotorCommandResult& out_result);
     RegistryResult lastRegistryResult() const;
     CommandState lastCommandState() const;
@@ -63,6 +64,7 @@ private:
     bool isTimedOut(uint32_t now_ms, uint32_t requested_at_ms, uint32_t timeout_ms) const;
     bool isStopCommand(MotorDirection direction, float speed_percent) const;
     bool runtimeAllowsMotorCommand(MotorDirection direction, float speed_percent) const;
+    bool pendingCommandAllowedInCurrentRuntime() const;
     void fillFailedResult(
         uint32_t now_ms,
         MotorDirection direction,
