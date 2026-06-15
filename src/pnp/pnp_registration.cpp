@@ -81,6 +81,8 @@ CapabilityPayload PnpRegistration::createInitialPayload(const char* capability_i
         payload.unit = "degree";
     } else if (isSameId(capability_id, CAP_MOTOR_CONTROL)) {
         payload.unit = "percent";
+    } else if (isSameId(capability_id, CAP_RELAY_CONTROL)) {
+        payload.unit = "boolean";
     } else {
         payload.unit = "degree_celsius";
     }
@@ -94,8 +96,12 @@ CapabilityRecord PnpRegistration::createCapabilityRecord(
     uint8_t owner_device_index) const {
     CapabilityRecord record;
     record.capability_id = capability_id;
-    if (isSameId(capability_id, CAP_SERVO_POSITION) ||
-        isSameId(capability_id, CAP_MOTOR_CONTROL)) {
+    if (isSameId(capability_id, CAP_RELAY_CONTROL)) {
+        record.category = "power";
+        record.kind = "actuator";
+        record.access = "read_write";
+    } else if (isSameId(capability_id, CAP_SERVO_POSITION) ||
+               isSameId(capability_id, CAP_MOTOR_CONTROL)) {
         record.category = "actuators";
         record.kind = "actuator";
         record.access = "read_write";
@@ -104,7 +110,9 @@ CapabilityRecord PnpRegistration::createCapabilityRecord(
         record.kind = "sensor";
         record.access = "read";
     }
-    record.data_type = PayloadValueType::FLOAT;
+    record.data_type = isSameId(capability_id, CAP_RELAY_CONTROL)
+        ? PayloadValueType::BOOLEAN
+        : PayloadValueType::FLOAT;
     record.status = RecordStatus::AVAILABLE;
     record.owner_device_index = owner_device_index;
     record.latest_payload = createInitialPayload(capability_id);
@@ -115,7 +123,8 @@ bool PnpRegistration::isSupportedCapability(const char* capability_id) const {
     return isSameId(capability_id, CAP_TEMPERATURE) ||
            isSameId(capability_id, CAP_DISTANCE) ||
            isSameId(capability_id, CAP_SERVO_POSITION) ||
-           isSameId(capability_id, CAP_MOTOR_CONTROL);
+           isSameId(capability_id, CAP_MOTOR_CONTROL) ||
+           isSameId(capability_id, CAP_RELAY_CONTROL);
 }
 
 bool PnpRegistration::isSameId(const char* left, const char* right) const {

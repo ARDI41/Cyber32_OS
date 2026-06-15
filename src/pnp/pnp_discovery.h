@@ -26,6 +26,7 @@ public:
     bool discoverSimulatedDistanceModule(PnpModuleInfo& out_info);
     bool discoverSimulatedServoModule(PnpModuleInfo& out_info);
     bool discoverSimulatedMotorModule(PnpModuleInfo& out_info);
+    bool discoverSimulatedRelayModule(PnpModuleInfo& out_info);
 
 private:
     EventBus* event_bus_;

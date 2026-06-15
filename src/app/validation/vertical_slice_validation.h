@@ -5,10 +5,12 @@
 #include "../../api/cyber32_api.h"
 #include "../../core/event_bus/event_bus.h"
 #include "../../devices/actuators/sim_motor_device.h"
+#include "../../devices/actuators/sim_relay_device.h"
 #include "../../devices/actuators/sim_servo_device.h"
 #include "../../devices/sensors/sim_distance_device.h"
 #include "../../devices/sensors/sim_temperature_device.h"
 #include "../../drivers/actuators/sim_motor_driver.h"
+#include "../../drivers/actuators/sim_relay_driver.h"
 #include "../../drivers/actuators/sim_servo_driver.h"
 #include "../../drivers/sensors/sim_distance_driver.h"
 #include "../../drivers/sensors/sim_temperature_driver.h"
@@ -21,6 +23,7 @@
 #include "../../runtime/runtime.h"
 #include "../../services/distance/distance_service.h"
 #include "../../services/motor/motor_service.h"
+#include "../../services/relay/relay_service.h"
 #include "../../services/servo/servo_service.h"
 #include "../../services/temperature/temperature_service.h"
 
@@ -91,6 +94,22 @@ private:
         const char* last_error;
     };
 
+    struct RelayServiceStateTaskContext {
+        RelayService* service;
+        uint32_t now_ms;
+        bool ran;
+        bool last_result;
+        const char* last_error;
+    };
+
+    struct RelayServiceCommandTaskContext {
+        RelayService* service;
+        uint32_t now_ms;
+        bool ran;
+        bool last_result;
+        const char* last_error;
+    };
+
     EventBus event_bus_;
     Registry registry_;
     Runtime runtime_;
@@ -103,6 +122,8 @@ private:
     SimServoDevice servo_device_;
     SimMotorDriver motor_driver_;
     SimMotorDevice motor_device_;
+    SimRelayDriver relay_driver_;
+    SimRelayDevice relay_device_;
     PnpDiscovery pnp_discovery_;
     PnpRegistration pnp_registration_;
     TemperatureService temperature_service_;
@@ -111,6 +132,7 @@ private:
     DistanceLogic distance_logic_;
     ServoService servo_service_;
     MotorService motor_service_;
+    RelayService relay_service_;
     Cyber32Api api_;
     TemperatureServiceTaskContext service_task_context_;
     TemperatureLogicTaskContext logic_task_context_;
@@ -119,6 +141,8 @@ private:
     ServoServiceStateTaskContext servo_service_state_task_context_;
     MotorServiceStateTaskContext motor_service_state_task_context_;
     MotorServiceCommandTaskContext motor_service_command_task_context_;
+    RelayServiceStateTaskContext relay_service_state_task_context_;
+    RelayServiceCommandTaskContext relay_service_command_task_context_;
     bool passed_;
     const char* last_error_;
 
@@ -129,6 +153,8 @@ private:
     static void runServoServiceStateTask(void* context);
     static void runMotorServiceStateTask(void* context);
     static void runMotorServiceCommandTask(void* context);
+    static void runRelayServiceStateTask(void* context);
+    static void runRelayServiceCommandTask(void* context);
 
     bool registerRuntimeTasks();
     bool fail(const char* error);
@@ -140,6 +166,7 @@ private:
         const CapabilityPayload& payload,
         float expected_speed,
         MotorDirection expected_direction);
+    bool validateRelayPayload(const CapabilityPayload& payload, bool expected_enabled);
     bool validateLogicState();
     bool validateApiState();
     bool validateServoCommandState(uint32_t now_ms);
@@ -151,6 +178,7 @@ private:
         float expected_speed,
         MotorDirection expected_direction);
     bool validateMotorPendingRuntimeTransitions(uint32_t now_ms);
+    bool validateRelayCommandState(uint32_t now_ms);
     bool validateRuntimeSafeModeHelpers();
     bool validateRuntimeTaskState();
     bool validateRegistryResultState();

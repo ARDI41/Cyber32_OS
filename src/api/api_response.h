@@ -52,6 +52,19 @@ struct ApiMotorCommandResponse {
     const char* error_code;
 };
 
+struct ApiRelayCommandRequest {
+    bool enabled;
+    uint32_t timeout_ms;
+};
+
+struct ApiRelayCommandResponse {
+    bool ok;
+    CommandState command_state;
+    bool accepted;
+    bool executed;
+    const char* error_code;
+};
+
 struct ApiCommandStateResponse {
     bool ok;
     CommandState command_state;
