@@ -1,6 +1,7 @@
 #include "vertical_slice_validation.h"
 
 #include "../../core/ids/capability_ids.h"
+#include "../../core/ids/error_ids.h"
 #include "../../logic/logic_status.h"
 
 namespace Cyber32 {
@@ -1022,6 +1023,9 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
     if (command_response.executed) {
         return fail("api_motor_timeout_command_executed_too_early");
     }
+    if (!isSameText(command_response.error_code, "none")) {
+        return fail("api_motor_timeout_accept_error_invalid");
+    }
 
     const uint32_t timeout_execution_ms = now_ms + 20;
     motor_service_command_task_context_.now_ms = timeout_execution_ms;
@@ -1051,6 +1055,9 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
     }
     if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
         return fail("api_motor_timeout_command_direction_invalid");
+    }
+    if (!isSameText(command_state_response.error_code, ERR_COMMAND_TIMEOUT)) {
+        return fail("api_motor_timeout_command_error_invalid");
     }
 
     if (!api_.getMotorControlState(motor_state)) {
@@ -1182,6 +1189,9 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
     if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
         return fail("api_motor_failure_command_direction_invalid");
     }
+    if (!isSameText(command_state_response.error_code, ERR_ACTUATOR_EXECUTION_FAILED)) {
+        return fail("api_motor_failure_command_error_invalid");
+    }
 
     if (!api_.getMotorControlState(motor_state)) {
         return fail("api_motor_after_failure_failed");
@@ -1227,6 +1237,27 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
     }
     if (command_response.command_state != CommandState::FAILED) {
         return fail("api_motor_pending_motion_state_invalid");
+    }
+    if (!isSameText(command_response.error_code, ERR_PENDING_COMMAND_EXISTS)) {
+        return fail("api_motor_pending_motion_error_invalid");
+    }
+    if (!api_.getMotorCommandState(command_state_response)) {
+        return fail("api_motor_pending_motion_state_read_failed");
+    }
+    if (!command_state_response.ok) {
+        return fail("api_motor_pending_motion_state_not_ok");
+    }
+    if (command_state_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_pending_motion_latest_state_invalid");
+    }
+    if (command_state_response.value_float != 60.0F) {
+        return fail("api_motor_pending_motion_value_invalid");
+    }
+    if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
+        return fail("api_motor_pending_motion_direction_invalid");
+    }
+    if (!isSameText(command_state_response.error_code, ERR_PENDING_COMMAND_EXISTS)) {
+        return fail("api_motor_pending_motion_latest_error_invalid");
     }
 
     command_request.direction = MotorDirection::STOP;
@@ -1307,6 +1338,9 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
     if (command_response.command_state != CommandState::FAILED) {
         return fail("api_motor_invalid_command_state");
     }
+    if (!isSameText(command_response.error_code, ERR_COMMAND_INVALID_SPEED)) {
+        return fail("api_motor_invalid_command_response_error_invalid");
+    }
     if (!api_.getMotorCommandState(command_state_response)) {
         return fail("api_motor_invalid_command_state_read_failed");
     }
@@ -1319,11 +1353,104 @@ bool VerticalSliceValidation::validateMotorCommandState(uint32_t now_ms) {
     if (command_state_response.value_float != 999.0F) {
         return fail("api_motor_invalid_command_value_invalid");
     }
-    if (isSameText(command_state_response.error_code, "none")) {
+    if (!isSameText(command_state_response.error_code, ERR_COMMAND_INVALID_SPEED)) {
         return fail("api_motor_invalid_command_error_invalid");
     }
     if (!api_.getMotorControlState(motor_state)) {
         return fail("api_motor_after_invalid_failed");
+    }
+    if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
+        return false;
+    }
+
+    command_request.direction = MotorDirection::FORWARD;
+    command_request.speed_percent = 10.0F;
+    command_request.timeout_ms = 0;
+    if (api_.commandMotorControl(now_ms, command_request, command_response)) {
+        return fail("api_motor_invalid_timeout_succeeded");
+    }
+    if (command_response.ok) {
+        return fail("api_motor_invalid_timeout_ok");
+    }
+    if (command_response.accepted) {
+        return fail("api_motor_invalid_timeout_accepted");
+    }
+    if (command_response.executed) {
+        return fail("api_motor_invalid_timeout_executed");
+    }
+    if (command_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_invalid_timeout_state");
+    }
+    if (!isSameText(command_response.error_code, ERR_COMMAND_INVALID_TIMEOUT)) {
+        return fail("api_motor_invalid_timeout_response_error_invalid");
+    }
+    if (!api_.getMotorCommandState(command_state_response)) {
+        return fail("api_motor_invalid_timeout_state_read_failed");
+    }
+    if (!command_state_response.ok) {
+        return fail("api_motor_invalid_timeout_state_not_ok");
+    }
+    if (command_state_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_invalid_timeout_latest_state_invalid");
+    }
+    if (command_state_response.value_float != 10.0F) {
+        return fail("api_motor_invalid_timeout_value_invalid");
+    }
+    if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
+        return fail("api_motor_invalid_timeout_direction_invalid");
+    }
+    if (!isSameText(command_state_response.error_code, ERR_COMMAND_INVALID_TIMEOUT)) {
+        return fail("api_motor_invalid_timeout_error_invalid");
+    }
+    if (!api_.getMotorControlState(motor_state)) {
+        return fail("api_motor_after_invalid_timeout_failed");
+    }
+    if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
+        return false;
+    }
+
+    const MotorDirection invalid_direction = static_cast<MotorDirection>(99);
+    command_request.direction = invalid_direction;
+    command_request.speed_percent = 10.0F;
+    command_request.timeout_ms = 1000;
+    if (api_.commandMotorControl(now_ms, command_request, command_response)) {
+        return fail("api_motor_invalid_direction_succeeded");
+    }
+    if (command_response.ok) {
+        return fail("api_motor_invalid_direction_ok");
+    }
+    if (command_response.accepted) {
+        return fail("api_motor_invalid_direction_accepted");
+    }
+    if (command_response.executed) {
+        return fail("api_motor_invalid_direction_executed");
+    }
+    if (command_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_invalid_direction_state");
+    }
+    if (!isSameText(command_response.error_code, ERR_COMMAND_INVALID_DIRECTION)) {
+        return fail("api_motor_invalid_direction_response_error_invalid");
+    }
+    if (!api_.getMotorCommandState(command_state_response)) {
+        return fail("api_motor_invalid_direction_state_read_failed");
+    }
+    if (!command_state_response.ok) {
+        return fail("api_motor_invalid_direction_state_not_ok");
+    }
+    if (command_state_response.command_state != CommandState::FAILED) {
+        return fail("api_motor_invalid_direction_latest_state_invalid");
+    }
+    if (command_state_response.value_float != 10.0F) {
+        return fail("api_motor_invalid_direction_value_invalid");
+    }
+    if (command_state_response.value_int != static_cast<int32_t>(invalid_direction)) {
+        return fail("api_motor_invalid_direction_value_int_invalid");
+    }
+    if (!isSameText(command_state_response.error_code, ERR_COMMAND_INVALID_DIRECTION)) {
+        return fail("api_motor_invalid_direction_error_invalid");
+    }
+    if (!api_.getMotorControlState(motor_state)) {
+        return fail("api_motor_after_invalid_direction_failed");
     }
     if (!validateMotorPayload(motor_state.payload, 0.0F, MotorDirection::STOP)) {
         return false;
@@ -1409,7 +1536,7 @@ bool VerticalSliceValidation::validateMotorPendingRuntimeTransitions(uint32_t no
     if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
         return fail("api_motor_safe_transition_direction_invalid");
     }
-    if (isSameText(command_state_response.error_code, "none")) {
+    if (!isSameText(command_state_response.error_code, ERR_SAFE_MODE_BLOCKED)) {
         return fail("api_motor_safe_transition_error_invalid");
     }
     if (motor_service_.hasPendingCommand()) {
@@ -1474,7 +1601,7 @@ bool VerticalSliceValidation::validateMotorPendingRuntimeTransitions(uint32_t no
     if (command_state_response.value_int != static_cast<int32_t>(MotorDirection::FORWARD)) {
         return fail("api_motor_error_transition_direction_invalid");
     }
-    if (isSameText(command_state_response.error_code, "none")) {
+    if (!isSameText(command_state_response.error_code, ERR_RUNTIME_NOT_READY)) {
         return fail("api_motor_error_transition_error_invalid");
     }
     if (motor_service_.hasPendingCommand()) {
@@ -1590,7 +1717,11 @@ bool VerticalSliceValidation::validateMotorRuntimeBlockedState(
     if (command_response.executed) {
         return fail("api_motor_blocked_command_executed");
     }
-    if (isSameText(command_response.error_code, "none")) {
+    const char* expected_error_code = state == RuntimeState::SAFE_MODE
+        ? ERR_SAFE_MODE_BLOCKED
+        : ERR_RUNTIME_NOT_READY;
+
+    if (!isSameText(command_response.error_code, expected_error_code)) {
         return fail("api_motor_blocked_command_error_invalid");
     }
 
@@ -1603,6 +1734,9 @@ bool VerticalSliceValidation::validateMotorRuntimeBlockedState(
     }
     if (command_state_response.command_state != CommandState::FAILED) {
         return fail("api_motor_blocked_latest_state_invalid");
+    }
+    if (!isSameText(command_state_response.error_code, expected_error_code)) {
+        return fail("api_motor_blocked_latest_error_invalid");
     }
 
     ApiCapabilityState motor_state;

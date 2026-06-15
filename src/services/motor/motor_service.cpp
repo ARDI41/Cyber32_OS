@@ -63,7 +63,7 @@ bool MotorService::setMotor(
             request.direction,
             request.speed_percent,
             out_result,
-            ERR_CAPABILITY_UNAVAILABLE);
+            ERR_ACTUATOR_UNAVAILABLE);
         return false;
     }
 
@@ -74,7 +74,7 @@ bool MotorService::setMotor(
             request.direction,
             request.speed_percent,
             out_result,
-            ERR_CAPABILITY_UNAVAILABLE);
+            runtimeCommandError(request.direction, request.speed_percent));
         return false;
     }
 
@@ -85,7 +85,7 @@ bool MotorService::setMotor(
             request.direction,
             request.speed_percent,
             out_result,
-            ERR_CAPABILITY_UNAVAILABLE);
+            motorRequestValidationError(request.direction, request.speed_percent));
         return false;
     }
 
@@ -96,7 +96,7 @@ bool MotorService::setMotor(
             request.direction,
             request.speed_percent,
             out_result,
-            ERR_CAPABILITY_UNAVAILABLE);
+            ERR_COMMAND_INVALID_TIMEOUT);
         return false;
     }
 
@@ -108,7 +108,7 @@ bool MotorService::setMotor(
                 request.direction,
                 request.speed_percent,
                 out_result,
-                ERR_CAPABILITY_UNAVAILABLE);
+                ERR_PENDING_COMMAND_EXISTS);
             return false;
         }
     }
@@ -149,7 +149,7 @@ bool MotorService::executePendingCommand(uint32_t now_ms) {
     const uint32_t timeout_ms = pending_command_.timeout_ms;
 
     if (!pendingCommandAllowedInCurrentRuntime()) {
-        failPendingCommand(now_ms, ERR_CAPABILITY_UNAVAILABLE);
+        failPendingCommand(now_ms, runtimeCommandError(direction, speed_percent));
         return false;
     }
 
@@ -160,7 +160,7 @@ bool MotorService::executePendingCommand(uint32_t now_ms) {
             now_ms,
             CommandState::TIMED_OUT,
             last_registry_result_,
-            ERR_CAPABILITY_UNAVAILABLE,
+            ERR_COMMAND_TIMEOUT,
             direction,
             speed_percent);
         clearPendingCommand();
@@ -174,7 +174,7 @@ bool MotorService::executePendingCommand(uint32_t now_ms) {
             now_ms,
             CommandState::FAILED,
             last_registry_result_,
-            ERR_CAPABILITY_UNAVAILABLE,
+            runtimeCommandError(direction, speed_percent),
             direction,
             speed_percent);
         clearPendingCommand();
@@ -206,7 +206,9 @@ bool MotorService::executePendingCommand(uint32_t now_ms) {
         now_ms,
         CommandState::FAILED,
         last_registry_result_,
-        command_success ? ERR_CAPABILITY_UNAVAILABLE : ERR_DEVICE_TIMEOUT,
+        command_success
+            ? ERR_ACTUATOR_UNAVAILABLE
+            : (device_ == 0 ? ERR_ACTUATOR_UNAVAILABLE : ERR_ACTUATOR_EXECUTION_FAILED),
         direction,
         speed_percent);
     clearPendingCommand();
@@ -220,7 +222,7 @@ bool MotorService::failPendingCommand(uint32_t now_ms, const char* error_code) {
 
     const MotorDirection direction = pending_command_.direction;
     const float speed_percent = pending_command_.speed_percent;
-    const char* compact_error_code = error_code == 0 ? ERR_CAPABILITY_UNAVAILABLE : error_code;
+    const char* compact_error_code = error_code == 0 ? ERR_COMMAND_INVALID : error_code;
 
     last_command_state_ = CommandState::FAILED;
 
@@ -260,7 +262,7 @@ bool MotorService::stop(uint32_t now_ms, MotorCommandResult& out_result) {
             request.direction,
             request.speed_percent,
             out_result,
-            ERR_CAPABILITY_UNAVAILABLE);
+            ERR_ACTUATOR_UNAVAILABLE);
         return false;
     }
 
@@ -271,7 +273,7 @@ bool MotorService::stop(uint32_t now_ms, MotorCommandResult& out_result) {
             request.direction,
             request.speed_percent,
             out_result,
-            ERR_CAPABILITY_UNAVAILABLE);
+            runtimeCommandError(request.direction, request.speed_percent));
         return false;
     }
 
@@ -304,7 +306,7 @@ bool MotorService::stop(uint32_t now_ms, MotorCommandResult& out_result) {
 
     out_result.state = CommandState::FAILED;
     out_result.executed = false;
-    out_result.error_code = command_success ? ERR_CAPABILITY_UNAVAILABLE : ERR_DEVICE_TIMEOUT;
+    out_result.error_code = command_success ? ERR_ACTUATOR_UNAVAILABLE : ERR_ACTUATOR_EXECUTION_FAILED;
     last_command_state_ = CommandState::FAILED;
     writeCommandState(
         now_ms,
@@ -400,6 +402,44 @@ bool MotorService::pendingCommandAllowedInCurrentRuntime() const {
     return runtimeAllowsMotorCommand(
         pending_command_.direction,
         pending_command_.speed_percent);
+}
+
+const char* MotorService::motorRequestValidationError(
+    MotorDirection direction,
+    float speed_percent) const {
+    switch (direction) {
+        case MotorDirection::STOP:
+        case MotorDirection::FORWARD:
+        case MotorDirection::REVERSE:
+            break;
+        default:
+            return ERR_COMMAND_INVALID_DIRECTION;
+    }
+
+    if (speed_percent < 0.0F || speed_percent > 100.0F) {
+        return ERR_COMMAND_INVALID_SPEED;
+    }
+
+    if (direction == MotorDirection::STOP && speed_percent != 0.0F) {
+        return ERR_COMMAND_INVALID_SPEED;
+    }
+
+    return ERR_COMMAND_INVALID;
+}
+
+const char* MotorService::runtimeCommandError(
+    MotorDirection direction,
+    float speed_percent) const {
+    if (runtime_ == 0) {
+        return ERR_RUNTIME_NOT_READY;
+    }
+
+    if (runtime_->state() == RuntimeState::SAFE_MODE &&
+        !isStopCommand(direction, speed_percent)) {
+        return ERR_SAFE_MODE_BLOCKED;
+    }
+
+    return ERR_RUNTIME_NOT_READY;
 }
 
 void MotorService::fillFailedResult(

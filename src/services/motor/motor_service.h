@@ -65,6 +65,8 @@ private:
     bool isStopCommand(MotorDirection direction, float speed_percent) const;
     bool runtimeAllowsMotorCommand(MotorDirection direction, float speed_percent) const;
     bool pendingCommandAllowedInCurrentRuntime() const;
+    const char* motorRequestValidationError(MotorDirection direction, float speed_percent) const;
+    const char* runtimeCommandError(MotorDirection direction, float speed_percent) const;
     void fillFailedResult(
         uint32_t now_ms,
         MotorDirection direction,
