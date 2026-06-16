@@ -9,6 +9,7 @@ Registry::Registry()
       device_count_(0),
       capability_count_(0),
       command_state_count_(0),
+      capability_provider_count_(0),
       event_bus_(0) {
 }
 
@@ -17,6 +18,7 @@ void Registry::begin() {
     device_count_ = 0;
     capability_count_ = 0;
     command_state_count_ = 0;
+    capability_provider_count_ = 0;
     event_bus_ = 0;
 }
 
@@ -222,6 +224,52 @@ RegistryResult Registry::getCommandState(
     return RegistryResult::OK;
 }
 
+RegistryWriteResult Registry::registerCapabilityProviderWithResult(
+    const CapabilityProviderRecord& record) {
+    RegistryWriteResult result = {RegistryResult::OK, 255};
+
+    if (!isTextPresent(record.provider_id)) {
+        result.result = RegistryResult::INVALID_ID;
+        return result;
+    }
+    if (!isTextPresent(record.capability_id)) {
+        result.result = RegistryResult::INVALID_RECORD;
+        return result;
+    }
+    if (findCapabilityProviderIndex(record.provider_id) != NOT_FOUND) {
+        result.result = RegistryResult::DUPLICATE_ID;
+        return result;
+    }
+    if (capability_provider_count_ >= MAX_CAPABILITY_PROVIDERS) {
+        result.result = RegistryResult::TABLE_FULL;
+        return result;
+    }
+
+    const uint8_t assigned_index = capability_provider_count_;
+    capability_providers_[assigned_index] = record;
+    ++capability_provider_count_;
+
+    result.result = RegistryResult::OK;
+    result.index = assigned_index;
+    return result;
+}
+
+RegistryResult Registry::getCapabilityProvider(
+    const char* provider_id,
+    CapabilityProviderRecord& out_record) const {
+    if (!isTextPresent(provider_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findCapabilityProviderIndex(provider_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_record = capability_providers_[index];
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
@@ -232,6 +280,10 @@ uint8_t Registry::deviceCount() const {
 
 uint8_t Registry::capabilityCount() const {
     return capability_count_;
+}
+
+uint8_t Registry::capabilityProviderCount() const {
+    return capability_provider_count_;
 }
 
 bool Registry::isSameId(const char* left, const char* right) const {
@@ -320,6 +372,16 @@ bool Registry::hasCapabilityId(const char* capability_id) const {
 int8_t Registry::findCommandStateIndex(const char* capability_id) const {
     for (uint8_t i = 0; i < command_state_count_; ++i) {
         if (isSameId(command_states_[i].capability_id, capability_id)) {
+            return static_cast<int8_t>(i);
+        }
+    }
+
+    return NOT_FOUND;
+}
+
+int8_t Registry::findCapabilityProviderIndex(const char* provider_id) const {
+    for (uint8_t i = 0; i < capability_provider_count_; ++i) {
+        if (isSameId(capability_providers_[i].provider_id, provider_id)) {
             return static_cast<int8_t>(i);
         }
     }

@@ -42,6 +42,7 @@ bool PnpRegistration::registerModuleInfo(const PnpModuleInfo& info) {
 
     CapabilityRecord capability_record = createCapabilityRecord(info.capability_id, device_result.index);
     RegistryWriteResult capability_result = registry_->registerCapabilityWithResult(capability_record);
+    // Multi-provider capability ownership is future work; duplicate IDs follow Registry rules.
     return capability_result.result == RegistryResult::OK;
 }
 

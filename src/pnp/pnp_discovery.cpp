@@ -4,6 +4,7 @@
 #include "../modules/actuators/sim_motor_module.h"
 #include "../modules/actuators/sim_relay_module.h"
 #include "../modules/actuators/sim_servo_module.h"
+#include "../modules/communication/wireless_temperature_module.h"
 #include "../modules/sensing/sim_distance_module.h"
 #include "../modules/sensing/sim_temperature_module.h"
 
@@ -103,6 +104,27 @@ bool PnpDiscovery::discoverSimulatedMotorModule(PnpModuleInfo& out_info) {
 
 bool PnpDiscovery::discoverSimulatedRelayModule(PnpModuleInfo& out_info) {
     SimRelayModule module;
+
+    out_info.module_id = module.id();
+    out_info.module_type = module.type();
+    out_info.metadata_level = module.metadataLevel();
+    out_info.display_name = module.displayName();
+    out_info.device_id = module.deviceId();
+    out_info.device_type = module.deviceType();
+    out_info.capability_id = module.capabilityId();
+    out_info.valid = false;
+
+    if (!validateInfo(out_info)) {
+        return false;
+    }
+
+    out_info.valid = true;
+    publishModuleDiscovered(out_info);
+    return true;
+}
+
+bool PnpDiscovery::discoverWirelessTemperatureModule(PnpModuleInfo& out_info) {
+    WirelessTemperatureModule module;
 
     out_info.module_id = module.id();
     out_info.module_type = module.type();

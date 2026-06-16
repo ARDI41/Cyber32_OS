@@ -256,6 +256,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateCapabilityProviderStorage(now_ms)) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -378,6 +382,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateRegistryResultState()) {
+        return false;
+    }
+
+    if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
 
@@ -2611,6 +2619,114 @@ bool VerticalSliceValidation::validateRegistryResultState() {
     if (registry_.updateCapabilityPayloadWithResult("CAP_MISSING_TEST", missing_update_payload) !=
         RegistryResult::NOT_FOUND) {
         return fail("missing_update_result_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms) {
+    if (registry_.capabilityProviderCount() != 0) {
+        return fail("provider_count_initial_invalid");
+    }
+
+    CapabilityPayload temperature_payload;
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("provider_temperature_payload_missing");
+    }
+
+    CapabilityProviderRecord provider;
+    provider.provider_id = "provider-sim-temperature-001";
+    provider.capability_id = CAP_TEMPERATURE;
+    provider.owner_module_index = 0;
+    provider.owner_device_index = 0;
+    provider.provider_type = CapabilityProviderType::SIMULATED;
+    provider.status = CapabilityProviderStatus::AVAILABLE;
+    provider.priority = 10;
+    provider.last_update_ms = now_ms;
+    provider.latest_payload = temperature_payload;
+
+    RegistryWriteResult provider_result = registry_.registerCapabilityProviderWithResult(provider);
+    if (provider_result.result != RegistryResult::OK) {
+        return fail("provider_register_result_invalid");
+    }
+    if (provider_result.index != 0) {
+        return fail("provider_register_index_invalid");
+    }
+    if (registry_.capabilityProviderCount() != 1) {
+        return fail("provider_count_after_register_invalid");
+    }
+
+    CapabilityProviderRecord out_record;
+    if (registry_.getCapabilityProvider("provider-sim-temperature-001", out_record) !=
+        RegistryResult::OK) {
+        return fail("provider_get_result_invalid");
+    }
+    if (!isSameText(out_record.capability_id, CAP_TEMPERATURE)) {
+        return fail("provider_capability_id_invalid");
+    }
+    if (out_record.provider_type != CapabilityProviderType::SIMULATED) {
+        return fail("provider_type_invalid");
+    }
+    if (out_record.status != CapabilityProviderStatus::AVAILABLE) {
+        return fail("provider_status_invalid");
+    }
+
+    if (registry_.registerCapabilityProviderWithResult(provider).result !=
+        RegistryResult::DUPLICATE_ID) {
+        return fail("provider_duplicate_result_invalid");
+    }
+    if (registry_.capabilityProviderCount() != 1) {
+        return fail("provider_count_after_duplicate_invalid");
+    }
+
+    if (registry_.getCapabilityProvider("provider-missing", out_record) != RegistryResult::NOT_FOUND) {
+        return fail("provider_missing_result_invalid");
+    }
+
+    CapabilityProviderRecord invalid_provider = provider;
+    invalid_provider.provider_id = 0;
+    if (registry_.registerCapabilityProviderWithResult(invalid_provider).result !=
+        RegistryResult::INVALID_ID) {
+        return fail("provider_null_id_result_invalid");
+    }
+
+    invalid_provider = provider;
+    invalid_provider.provider_id = "";
+    if (registry_.registerCapabilityProviderWithResult(invalid_provider).result !=
+        RegistryResult::INVALID_ID) {
+        return fail("provider_empty_id_result_invalid");
+    }
+
+    invalid_provider = provider;
+    invalid_provider.provider_id = "provider-invalid-capability-001";
+    invalid_provider.capability_id = 0;
+    if (registry_.registerCapabilityProviderWithResult(invalid_provider).result !=
+        RegistryResult::INVALID_RECORD) {
+        return fail("provider_null_capability_result_invalid");
+    }
+
+    invalid_provider = provider;
+    invalid_provider.provider_id = "provider-invalid-capability-002";
+    invalid_provider.capability_id = "";
+    if (registry_.registerCapabilityProviderWithResult(invalid_provider).result !=
+        RegistryResult::INVALID_RECORD) {
+        return fail("provider_empty_capability_result_invalid");
+    }
+
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("provider_temperature_payload_changed");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+    if (registry_.moduleCount() != 5) {
+        return fail("provider_module_count_changed");
+    }
+    if (registry_.deviceCount() != 5) {
+        return fail("provider_device_count_changed");
+    }
+    if (registry_.capabilityCount() != 5) {
+        return fail("provider_capability_count_changed");
     }
 
     return true;

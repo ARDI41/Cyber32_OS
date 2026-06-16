@@ -182,6 +182,7 @@ private:
     bool validateRuntimeSafeModeHelpers();
     bool validateRuntimeTaskState();
     bool validateRegistryResultState();
+    bool validateCapabilityProviderStorage(uint32_t now_ms);
     bool isSameText(const char* left, const char* right) const;
 };
 
