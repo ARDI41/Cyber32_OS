@@ -10,6 +10,7 @@ Registry::Registry()
       capability_count_(0),
       command_state_count_(0),
       capability_provider_count_(0),
+      active_capability_provider_count_(0),
       event_bus_(0) {
 }
 
@@ -19,6 +20,7 @@ void Registry::begin() {
     capability_count_ = 0;
     command_state_count_ = 0;
     capability_provider_count_ = 0;
+    active_capability_provider_count_ = 0;
     event_bus_ = 0;
 }
 
@@ -270,6 +272,54 @@ RegistryResult Registry::getCapabilityProvider(
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::setActiveProvider(const char* capability_id, const char* provider_id) {
+    if (!isTextPresent(capability_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+    if (!isTextPresent(provider_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t provider_index = findCapabilityProviderIndex(provider_id);
+    if (provider_index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+    if (!isSameId(capability_providers_[provider_index].capability_id, capability_id)) {
+        return RegistryResult::INVALID_RECORD;
+    }
+
+    const int8_t active_index = findActiveProviderIndex(capability_id);
+    if (active_index != NOT_FOUND) {
+        active_capability_providers_[active_index].provider_id = provider_id;
+        return RegistryResult::OK;
+    }
+
+    if (active_capability_provider_count_ >= MAX_ACTIVE_CAPABILITY_PROVIDERS) {
+        return RegistryResult::TABLE_FULL;
+    }
+
+    active_capability_providers_[active_capability_provider_count_].capability_id = capability_id;
+    active_capability_providers_[active_capability_provider_count_].provider_id = provider_id;
+    ++active_capability_provider_count_;
+    return RegistryResult::OK;
+}
+
+RegistryResult Registry::getActiveProvider(
+    const char* capability_id,
+    ActiveCapabilityProvider& out_provider) const {
+    if (!isTextPresent(capability_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findActiveProviderIndex(capability_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_provider = active_capability_providers_[index];
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
@@ -284,6 +334,10 @@ uint8_t Registry::capabilityCount() const {
 
 uint8_t Registry::capabilityProviderCount() const {
     return capability_provider_count_;
+}
+
+uint8_t Registry::activeProviderCount() const {
+    return active_capability_provider_count_;
 }
 
 bool Registry::isSameId(const char* left, const char* right) const {
@@ -382,6 +436,16 @@ int8_t Registry::findCommandStateIndex(const char* capability_id) const {
 int8_t Registry::findCapabilityProviderIndex(const char* provider_id) const {
     for (uint8_t i = 0; i < capability_provider_count_; ++i) {
         if (isSameId(capability_providers_[i].provider_id, provider_id)) {
+            return static_cast<int8_t>(i);
+        }
+    }
+
+    return NOT_FOUND;
+}
+
+int8_t Registry::findActiveProviderIndex(const char* capability_id) const {
+    for (uint8_t i = 0; i < active_capability_provider_count_; ++i) {
+        if (isSameId(active_capability_providers_[i].capability_id, capability_id)) {
             return static_cast<int8_t>(i);
         }
     }

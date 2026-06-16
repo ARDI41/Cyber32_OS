@@ -2683,6 +2683,84 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("provider_missing_result_invalid");
     }
 
+    if (registry_.activeProviderCount() != 0) {
+        return fail("active_provider_count_initial_invalid");
+    }
+
+    if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-sim-temperature-001") !=
+        RegistryResult::OK) {
+        return fail("active_provider_set_result_invalid");
+    }
+    if (registry_.activeProviderCount() != 1) {
+        return fail("active_provider_count_after_set_invalid");
+    }
+
+    ActiveCapabilityProvider active_provider;
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("active_provider_get_result_invalid");
+    }
+    if (!isSameText(active_provider.capability_id, CAP_TEMPERATURE)) {
+        return fail("active_provider_capability_id_invalid");
+    }
+    if (!isSameText(active_provider.provider_id, "provider-sim-temperature-001")) {
+        return fail("active_provider_id_invalid");
+    }
+
+    CapabilityProviderRecord wireless_provider = provider;
+    wireless_provider.provider_id = "provider-wireless-temperature-001";
+    wireless_provider.provider_type = CapabilityProviderType::WIRELESS;
+    wireless_provider.status = CapabilityProviderStatus::AVAILABLE;
+    wireless_provider.priority = 20;
+    RegistryWriteResult wireless_result =
+        registry_.registerCapabilityProviderWithResult(wireless_provider);
+    if (wireless_result.result != RegistryResult::OK) {
+        return fail("wireless_provider_register_result_invalid");
+    }
+
+    if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-wireless-temperature-001") !=
+        RegistryResult::OK) {
+        return fail("active_provider_update_result_invalid");
+    }
+    if (registry_.activeProviderCount() != 1) {
+        return fail("active_provider_count_after_update_invalid");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("active_provider_get_after_update_invalid");
+    }
+    if (!isSameText(active_provider.provider_id, "provider-wireless-temperature-001")) {
+        return fail("active_provider_update_id_invalid");
+    }
+
+    if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-missing") !=
+        RegistryResult::NOT_FOUND) {
+        return fail("active_provider_missing_result_invalid");
+    }
+
+    CapabilityPayload distance_payload;
+    if (!registry_.getCapabilityPayload(CAP_DISTANCE, distance_payload)) {
+        return fail("provider_distance_payload_missing");
+    }
+
+    CapabilityProviderRecord distance_provider = provider;
+    distance_provider.provider_id = "provider-distance-001";
+    distance_provider.capability_id = CAP_DISTANCE;
+    distance_provider.owner_module_index = 1;
+    distance_provider.owner_device_index = 1;
+    distance_provider.latest_payload = distance_payload;
+    RegistryWriteResult distance_provider_result =
+        registry_.registerCapabilityProviderWithResult(distance_provider);
+    if (distance_provider_result.result != RegistryResult::OK) {
+        return fail("distance_provider_register_result_invalid");
+    }
+
+    if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-distance-001") !=
+        RegistryResult::INVALID_RECORD) {
+        return fail("active_provider_mismatch_result_invalid");
+    }
+    if (registry_.getActiveProvider(CAP_DISTANCE, active_provider) != RegistryResult::NOT_FOUND) {
+        return fail("active_provider_missing_mapping_invalid");
+    }
+
     CapabilityProviderRecord invalid_provider = provider;
     invalid_provider.provider_id = 0;
     if (registry_.registerCapabilityProviderWithResult(invalid_provider).result !=

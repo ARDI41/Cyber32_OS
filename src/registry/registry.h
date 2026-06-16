@@ -10,6 +10,11 @@
 
 namespace Cyber32 {
 
+struct ActiveCapabilityProvider {
+    const char* capability_id;
+    const char* provider_id;
+};
+
 class Registry {
 public:
     static constexpr uint8_t MAX_MODULES = 8;
@@ -17,6 +22,7 @@ public:
     static constexpr uint8_t MAX_CAPABILITIES = 48;
     static constexpr uint8_t MAX_COMMAND_STATES = 8;
     static constexpr uint8_t MAX_CAPABILITY_PROVIDERS = 16;
+    static constexpr uint8_t MAX_ACTIVE_CAPABILITY_PROVIDERS = 16;
     static constexpr int8_t NOT_FOUND = -1;
 
     Registry();
@@ -41,11 +47,14 @@ public:
     RegistryResult getCommandState(const char* capability_id, CommandStateRecord& out_record) const;
     RegistryWriteResult registerCapabilityProviderWithResult(const CapabilityProviderRecord& record);
     RegistryResult getCapabilityProvider(const char* provider_id, CapabilityProviderRecord& out_record) const;
+    RegistryResult setActiveProvider(const char* capability_id, const char* provider_id);
+    RegistryResult getActiveProvider(const char* capability_id, ActiveCapabilityProvider& out_provider) const;
 
     uint8_t moduleCount() const;
     uint8_t deviceCount() const;
     uint8_t capabilityCount() const;
     uint8_t capabilityProviderCount() const;
+    uint8_t activeProviderCount() const;
 
 private:
     ModuleRecord modules_[MAX_MODULES];
@@ -53,11 +62,13 @@ private:
     CapabilityRecord capabilities_[MAX_CAPABILITIES];
     CommandStateRecord command_states_[MAX_COMMAND_STATES];
     CapabilityProviderRecord capability_providers_[MAX_CAPABILITY_PROVIDERS];
+    ActiveCapabilityProvider active_capability_providers_[MAX_ACTIVE_CAPABILITY_PROVIDERS];
     uint8_t module_count_;
     uint8_t device_count_;
     uint8_t capability_count_;
     uint8_t command_state_count_;
     uint8_t capability_provider_count_;
+    uint8_t active_capability_provider_count_;
     EventBus* event_bus_;
 
     bool isTextPresent(const char* value) const;
@@ -71,6 +82,7 @@ private:
     bool hasCapabilityId(const char* capability_id) const;
     int8_t findCommandStateIndex(const char* capability_id) const;
     int8_t findCapabilityProviderIndex(const char* provider_id) const;
+    int8_t findActiveProviderIndex(const char* capability_id) const;
     void publishCapabilityEvent(const char* event_id, const char* capability_id, uint32_t timestamp_ms);
 };
 
