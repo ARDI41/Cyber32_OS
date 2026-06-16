@@ -60,6 +60,15 @@ bool VerticalSliceValidation::begin() {
         return fail("relay_device_begin_failed");
     }
 
+    wireless_transport_driver_.begin();
+    if (!wireless_temperature_device_.begin(1001)) {
+        return fail("wireless_temperature_device_begin_failed");
+    }
+    wireless_service_.begin();
+    wireless_service_.attachRegistry(&registry_);
+    wireless_service_.attachTransportDriver(&wireless_transport_driver_);
+    wireless_service_.attachWirelessTemperatureDevice(&wireless_temperature_device_);
+
     pnp_discovery_.attachEventBus(&event_bus_);
 
     PnpModuleInfo module_info;
@@ -2707,25 +2716,117 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     }
 
     CapabilityProviderRecord wireless_provider = provider;
-    wireless_provider.provider_id = "provider-wireless-temperature-001";
+    CapabilityPayload wireless_initial_payload;
+    wireless_initial_payload.capability_id = CAP_TEMPERATURE;
+    wireless_initial_payload.schema_version = 1;
+    wireless_initial_payload.timestamp_ms = 0;
+    wireless_initial_payload.available = Availability::UNAVAILABLE;
+    wireless_initial_payload.stale = StaleState::STALE;
+    wireless_initial_payload.value_type = PayloadValueType::NONE;
+    wireless_initial_payload.value_float = 0.0F;
+    wireless_initial_payload.value_int = 0;
+    wireless_initial_payload.unit = "degree_celsius";
+    wireless_initial_payload.quality = "stale";
+    wireless_initial_payload.error_code = "none";
+
+    wireless_provider.provider_id = WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID;
     wireless_provider.provider_type = CapabilityProviderType::WIRELESS;
-    wireless_provider.status = CapabilityProviderStatus::AVAILABLE;
+    wireless_provider.status = CapabilityProviderStatus::STALE;
     wireless_provider.priority = 20;
+    wireless_provider.latest_payload = wireless_initial_payload;
     RegistryWriteResult wireless_result =
         registry_.registerCapabilityProviderWithResult(wireless_provider);
     if (wireless_result.result != RegistryResult::OK) {
         return fail("wireless_provider_register_result_invalid");
     }
 
+    WirelessPacketHeader header;
+    header.magic = WIRELESS_PACKET_MAGIC;
+    header.protocol_version = WIRELESS_PROTOCOL_VERSION;
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.flags = 0;
+    header.sequence_id = 1;
+    header.node_id = 1001;
+    header.payload_length = 0;
+
+    WirelessCapabilityValue value;
+    copyWirelessCapabilityId(value.capability_id, CAP_TEMPERATURE);
+    value.payload_type = WirelessPayloadType::FLOAT;
+    value.value_float = 23.5F;
+    value.value_int = 0;
+    copyWirelessCapabilityId(value.error_code, "none");
+
+    WirelessNodeDiagnostics diagnostics;
+    diagnostics.battery_present = true;
+    diagnostics.battery_level_percent = 87.0F;
+    diagnostics.battery_voltage = 0.0F;
+    diagnostics.signal_quality_percent = 75.0F;
+
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_packet_inject_failed");
+    }
+    if (!wireless_service_.processPackets(now_ms)) {
+        return fail("wireless_process_packet_failed");
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("wireless_packet_slot_not_cleared");
+    }
+
+    CapabilityProviderRecord wireless_out_record;
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_provider_get_after_process_failed");
+    }
+    if (wireless_out_record.status != CapabilityProviderStatus::AVAILABLE) {
+        return fail("wireless_provider_status_invalid");
+    }
+    if (!isSameText(wireless_out_record.latest_payload.capability_id, CAP_TEMPERATURE)) {
+        return fail("wireless_provider_payload_capability_invalid");
+    }
+    if (wireless_out_record.latest_payload.value_float != 23.5F) {
+        return fail("wireless_provider_payload_value_invalid");
+    }
+    if (!isSameText(wireless_out_record.latest_payload.unit, "degree_celsius")) {
+        return fail("wireless_provider_payload_unit_invalid");
+    }
+    if (wireless_out_record.last_update_ms != now_ms) {
+        return fail("wireless_provider_last_update_invalid");
+    }
+
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_canonical_temperature_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    header.sequence_id = 2;
+    header.packet_type = WirelessPacketType::NODE_HEARTBEAT;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_invalid_packet_inject_failed");
+    }
+    if (wireless_service_.processPackets(now_ms + 1)) {
+        return fail("wireless_invalid_packet_process_succeeded");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_provider_get_after_invalid_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 23.5F) {
+        return fail("wireless_provider_changed_after_invalid");
+    }
+
     ActiveCapabilityProvider selected_provider;
     if (registry_.selectBestProvider(CAP_TEMPERATURE, selected_provider) != RegistryResult::OK) {
         return fail("provider_select_result_invalid");
     }
-    if (!isSameText(selected_provider.provider_id, "provider-wireless-temperature-001")) {
+    if (!isSameText(selected_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
         return fail("provider_select_priority_invalid");
     }
 
-    if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-wireless-temperature-001") !=
+    if (registry_.setActiveProvider(CAP_TEMPERATURE, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID) !=
         RegistryResult::OK) {
         return fail("active_provider_update_result_invalid");
     }
@@ -2735,7 +2836,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
         return fail("active_provider_get_after_update_invalid");
     }
-    if (!isSameText(active_provider.provider_id, "provider-wireless-temperature-001")) {
+    if (!isSameText(active_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
         return fail("active_provider_update_id_invalid");
     }
 
@@ -2776,7 +2877,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
         return fail("active_provider_get_after_select_invalid");
     }
-    if (!isSameText(active_provider.provider_id, "provider-wireless-temperature-001")) {
+    if (!isSameText(active_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
         return fail("active_provider_changed_by_select");
     }
 
@@ -2868,6 +2969,25 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     }
 
     return true;
+}
+
+void VerticalSliceValidation::copyWirelessCapabilityId(char* destination, const char* source) const {
+    if (destination == 0) {
+        return;
+    }
+
+    uint8_t index = 0;
+    while (index < WIRELESS_CAPABILITY_ID_SIZE - 1 &&
+           source != 0 &&
+           source[index] != '\0') {
+        destination[index] = source[index];
+        ++index;
+    }
+
+    while (index < WIRELESS_CAPABILITY_ID_SIZE) {
+        destination[index] = '\0';
+        ++index;
+    }
 }
 
 bool VerticalSliceValidation::isSameText(const char* left, const char* right) const {

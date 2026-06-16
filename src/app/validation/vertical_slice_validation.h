@@ -7,11 +7,13 @@
 #include "../../devices/actuators/sim_motor_device.h"
 #include "../../devices/actuators/sim_relay_device.h"
 #include "../../devices/actuators/sim_servo_device.h"
+#include "../../devices/communication/wireless_temperature_device.h"
 #include "../../devices/sensors/sim_distance_device.h"
 #include "../../devices/sensors/sim_temperature_device.h"
 #include "../../drivers/actuators/sim_motor_driver.h"
 #include "../../drivers/actuators/sim_relay_driver.h"
 #include "../../drivers/actuators/sim_servo_driver.h"
+#include "../../drivers/communication/sim_espnow_transport_driver.h"
 #include "../../drivers/sensors/sim_distance_driver.h"
 #include "../../drivers/sensors/sim_temperature_driver.h"
 #include "../../hal/time/hal_time.h"
@@ -26,6 +28,7 @@
 #include "../../services/relay/relay_service.h"
 #include "../../services/servo/servo_service.h"
 #include "../../services/temperature/temperature_service.h"
+#include "../../services/wireless/wireless_service.h"
 
 namespace Cyber32 {
 
@@ -124,6 +127,8 @@ private:
     SimMotorDevice motor_device_;
     SimRelayDriver relay_driver_;
     SimRelayDevice relay_device_;
+    SimEspNowTransportDriver wireless_transport_driver_;
+    WirelessTemperatureDevice wireless_temperature_device_;
     PnpDiscovery pnp_discovery_;
     PnpRegistration pnp_registration_;
     TemperatureService temperature_service_;
@@ -133,6 +138,7 @@ private:
     ServoService servo_service_;
     MotorService motor_service_;
     RelayService relay_service_;
+    WirelessService wireless_service_;
     Cyber32Api api_;
     TemperatureServiceTaskContext service_task_context_;
     TemperatureLogicTaskContext logic_task_context_;
@@ -183,6 +189,7 @@ private:
     bool validateRuntimeTaskState();
     bool validateRegistryResultState();
     bool validateCapabilityProviderStorage(uint32_t now_ms);
+    void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;
 };
 

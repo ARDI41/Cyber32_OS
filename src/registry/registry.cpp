@@ -272,6 +272,30 @@ RegistryResult Registry::getCapabilityProvider(
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::updateCapabilityProviderPayload(
+    const char* provider_id,
+    const CapabilityPayload& payload,
+    CapabilityProviderStatus status,
+    uint32_t now_ms) {
+    if (!isTextPresent(provider_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findCapabilityProviderIndex(provider_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+    if (!isTextPresent(payload.capability_id) ||
+        !isSameId(payload.capability_id, capability_providers_[index].capability_id)) {
+        return RegistryResult::INVALID_RECORD;
+    }
+
+    capability_providers_[index].latest_payload = payload;
+    capability_providers_[index].status = status;
+    capability_providers_[index].last_update_ms = now_ms;
+    return RegistryResult::OK;
+}
+
 RegistryResult Registry::setActiveProvider(const char* capability_id, const char* provider_id) {
     if (!isTextPresent(capability_id)) {
         return RegistryResult::INVALID_ID;
