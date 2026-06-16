@@ -2717,6 +2717,14 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("wireless_provider_register_result_invalid");
     }
 
+    ActiveCapabilityProvider selected_provider;
+    if (registry_.selectBestProvider(CAP_TEMPERATURE, selected_provider) != RegistryResult::OK) {
+        return fail("provider_select_result_invalid");
+    }
+    if (!isSameText(selected_provider.provider_id, "provider-wireless-temperature-001")) {
+        return fail("provider_select_priority_invalid");
+    }
+
     if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-wireless-temperature-001") !=
         RegistryResult::OK) {
         return fail("active_provider_update_result_invalid");
@@ -2731,9 +2739,61 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("active_provider_update_id_invalid");
     }
 
+    CapabilityProviderRecord newer_provider = provider;
+    newer_provider.provider_id = "provider-newer-temperature-001";
+    newer_provider.provider_type = CapabilityProviderType::WIRELESS;
+    newer_provider.status = CapabilityProviderStatus::AVAILABLE;
+    newer_provider.priority = 20;
+    newer_provider.last_update_ms = now_ms + 20;
+    RegistryWriteResult newer_result =
+        registry_.registerCapabilityProviderWithResult(newer_provider);
+    if (newer_result.result != RegistryResult::OK) {
+        return fail("newer_provider_register_result_invalid");
+    }
+    if (registry_.selectBestProvider(CAP_TEMPERATURE, selected_provider) != RegistryResult::OK) {
+        return fail("provider_select_tie_result_invalid");
+    }
+    if (!isSameText(selected_provider.provider_id, "provider-newer-temperature-001")) {
+        return fail("provider_select_tie_invalid");
+    }
+
+    CapabilityProviderRecord unavailable_provider = provider;
+    unavailable_provider.provider_id = "provider-unavailable-temperature-001";
+    unavailable_provider.status = CapabilityProviderStatus::UNAVAILABLE;
+    unavailable_provider.priority = 250;
+    unavailable_provider.last_update_ms = now_ms + 30;
+    RegistryWriteResult unavailable_result =
+        registry_.registerCapabilityProviderWithResult(unavailable_provider);
+    if (unavailable_result.result != RegistryResult::OK) {
+        return fail("unavailable_provider_register_result_invalid");
+    }
+    if (registry_.selectBestProvider(CAP_TEMPERATURE, selected_provider) != RegistryResult::OK) {
+        return fail("provider_select_unavailable_result_invalid");
+    }
+    if (!isSameText(selected_provider.provider_id, "provider-newer-temperature-001")) {
+        return fail("provider_select_unavailable_invalid");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("active_provider_get_after_select_invalid");
+    }
+    if (!isSameText(active_provider.provider_id, "provider-wireless-temperature-001")) {
+        return fail("active_provider_changed_by_select");
+    }
+
     if (registry_.setActiveProvider(CAP_TEMPERATURE, "provider-missing") !=
         RegistryResult::NOT_FOUND) {
         return fail("active_provider_missing_result_invalid");
+    }
+
+    if (registry_.selectBestProvider("CAP_MISSING_PROVIDER_TEST", selected_provider) !=
+        RegistryResult::NOT_FOUND) {
+        return fail("provider_select_missing_result_invalid");
+    }
+    if (registry_.selectBestProvider(0, selected_provider) != RegistryResult::INVALID_ID) {
+        return fail("provider_select_null_result_invalid");
+    }
+    if (registry_.selectBestProvider("", selected_provider) != RegistryResult::INVALID_ID) {
+        return fail("provider_select_empty_result_invalid");
     }
 
     CapabilityPayload distance_payload;

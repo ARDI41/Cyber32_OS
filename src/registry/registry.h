@@ -49,6 +49,7 @@ public:
     RegistryResult getCapabilityProvider(const char* provider_id, CapabilityProviderRecord& out_record) const;
     RegistryResult setActiveProvider(const char* capability_id, const char* provider_id);
     RegistryResult getActiveProvider(const char* capability_id, ActiveCapabilityProvider& out_provider) const;
+    RegistryResult selectBestProvider(const char* capability_id, ActiveCapabilityProvider& out_provider) const;
 
     uint8_t moduleCount() const;
     uint8_t deviceCount() const;

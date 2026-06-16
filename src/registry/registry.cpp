@@ -320,6 +320,45 @@ RegistryResult Registry::getActiveProvider(
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::selectBestProvider(
+    const char* capability_id,
+    ActiveCapabilityProvider& out_provider) const {
+    if (!isTextPresent(capability_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    int8_t selected_index = NOT_FOUND;
+    for (uint8_t i = 0; i < capability_provider_count_; ++i) {
+        const CapabilityProviderRecord& candidate = capability_providers_[i];
+        if (!isSameId(candidate.capability_id, capability_id)) {
+            continue;
+        }
+        if (candidate.status != CapabilityProviderStatus::AVAILABLE) {
+            continue;
+        }
+
+        if (selected_index == NOT_FOUND) {
+            selected_index = static_cast<int8_t>(i);
+            continue;
+        }
+
+        const CapabilityProviderRecord& selected = capability_providers_[selected_index];
+        if (candidate.priority > selected.priority ||
+            (candidate.priority == selected.priority &&
+             candidate.last_update_ms > selected.last_update_ms)) {
+            selected_index = static_cast<int8_t>(i);
+        }
+    }
+
+    if (selected_index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_provider.capability_id = capability_providers_[selected_index].capability_id;
+    out_provider.provider_id = capability_providers_[selected_index].provider_id;
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
