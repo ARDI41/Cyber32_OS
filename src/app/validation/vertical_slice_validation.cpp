@@ -2895,6 +2895,139 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return false;
     }
 
+    wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.sequence_id = 20;
+    value.value_float = 26.0F;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_trust_trusted_inject_failed");
+    }
+    if (!wireless_service_.processPackets(now_ms + 20)) {
+        return fail("wireless_trust_trusted_process_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_trust_trusted_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 26.0F) {
+        return fail("wireless_trust_trusted_provider_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_trust_canonical_before_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    wireless_temperature_device_.setTrustState(WirelessTrustState::UNTRUSTED);
+    header.sequence_id = 21;
+    value.value_float = 27.0F;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_trust_untrusted_inject_failed");
+    }
+    if (wireless_service_.processPackets(now_ms + 21)) {
+        return fail("wireless_trust_untrusted_process_succeeded");
+    }
+    if (!isSameText(wireless_service_.lastErrorCode(), "wireless_untrusted")) {
+        return fail("wireless_trust_untrusted_error_invalid");
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("wireless_trust_untrusted_packet_not_cleared");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_trust_untrusted_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 26.0F) {
+        return fail("wireless_trust_untrusted_provider_changed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_trust_untrusted_canonical_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    wireless_temperature_device_.setTrustState(WirelessTrustState::BLOCKED);
+    header.sequence_id = 22;
+    value.value_float = 28.0F;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_trust_blocked_inject_failed");
+    }
+    if (wireless_service_.processPackets(now_ms + 22)) {
+        return fail("wireless_trust_blocked_process_succeeded");
+    }
+    if (!isSameText(wireless_service_.lastErrorCode(), "wireless_untrusted")) {
+        return fail("wireless_trust_blocked_error_invalid");
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("wireless_trust_blocked_packet_not_cleared");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_trust_blocked_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 26.0F) {
+        return fail("wireless_trust_blocked_provider_changed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_trust_blocked_canonical_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    wireless_temperature_device_.setTrustState(WirelessTrustState::UNKNOWN);
+    header.sequence_id = 23;
+    value.value_float = 29.0F;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_trust_unknown_inject_failed");
+    }
+    if (wireless_service_.processPackets(now_ms + 23)) {
+        return fail("wireless_trust_unknown_process_succeeded");
+    }
+    if (!isSameText(wireless_service_.lastErrorCode(), "wireless_untrusted")) {
+        return fail("wireless_trust_unknown_error_invalid");
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("wireless_trust_unknown_packet_not_cleared");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_trust_unknown_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 26.0F) {
+        return fail("wireless_trust_unknown_provider_changed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_trust_unknown_canonical_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
+    header.sequence_id = 24;
+    value.value_float = 23.5F;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_trust_restore_inject_failed");
+    }
+    if (!wireless_service_.processPackets(now_ms + 24)) {
+        return fail("wireless_trust_restore_process_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_trust_restore_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 23.5F) {
+        return fail("wireless_trust_restore_provider_invalid");
+    }
+
     header.sequence_id = 2;
     header.packet_type = WirelessPacketType::NODE_HEARTBEAT;
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {

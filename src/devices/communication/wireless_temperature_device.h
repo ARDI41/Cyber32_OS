@@ -23,6 +23,8 @@ public:
         const WirelessNodeDiagnostics& diagnostics);
     bool readPayload(CapabilityPayload& out_payload) const;
     bool nodeRecord(WirelessNodeRecord& out_record) const;
+    void setTrustState(WirelessTrustState state);
+    WirelessTrustState trustState() const;
     const char* id() const;
     const char* type() const;
 

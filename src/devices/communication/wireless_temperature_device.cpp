@@ -80,6 +80,14 @@ bool WirelessTemperatureDevice::nodeRecord(WirelessNodeRecord& out_record) const
     return true;
 }
 
+void WirelessTemperatureDevice::setTrustState(WirelessTrustState state) {
+    node_record_.trust_state = state;
+}
+
+WirelessTrustState WirelessTemperatureDevice::trustState() const {
+    return node_record_.trust_state;
+}
+
 const char* WirelessTemperatureDevice::id() const {
     return DEVICE_ID;
 }

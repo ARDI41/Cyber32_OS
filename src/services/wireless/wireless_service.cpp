@@ -59,6 +59,11 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         return false;
     }
 
+    if (!wirelessTrustAllowsPayloadUpdate(temperature_device_->trustState())) {
+        last_error_code_ = "wireless_untrusted";
+        return false;
+    }
+
     if (!temperature_device_->updateFromPacket(now_ms, header, value, diagnostics)) {
         last_error_code_ = "device_update_failed";
         return false;

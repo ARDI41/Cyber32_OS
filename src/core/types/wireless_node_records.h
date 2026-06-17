@@ -41,4 +41,8 @@ struct WirelessCapabilityRecord {
     bool available;
 };
 
+inline bool wirelessTrustAllowsPayloadUpdate(WirelessTrustState state) {
+    return state == WirelessTrustState::TRUSTED;
+}
+
 }  // namespace Cyber32
