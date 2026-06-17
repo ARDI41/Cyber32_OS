@@ -3143,6 +3143,150 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("health_wireless_timestamp_restore_failed");
     }
 
+    const uint32_t wireless_timeout_base_ms = now_ms + 50000;
+    CapabilityPayload timeout_wireless_payload = wireless_out_record.latest_payload;
+    timeout_wireless_payload.timestamp_ms = wireless_timeout_base_ms;
+    timeout_wireless_payload.value_float = 23.5F;
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            wireless_timeout_base_ms + Registry::PROVIDER_STALE_TIMEOUT_MS) != RegistryResult::OK) {
+        return fail("wireless_timeout_sim_setup_failed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            timeout_wireless_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            wireless_timeout_base_ms) != RegistryResult::OK) {
+        return fail("wireless_timeout_wireless_setup_failed");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::OK) {
+        return fail("wireless_timeout_initial_best_failed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_timeout_initial_temperature_missing");
+    }
+    if (temperature_payload.value_float != 23.5F) {
+        return fail("wireless_timeout_initial_temperature_invalid");
+    }
+    if (!wireless_service_.checkTimeouts(wireless_timeout_base_ms + Registry::PROVIDER_STALE_TIMEOUT_MS)) {
+        return fail("wireless_timeout_stale_check_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_timeout_stale_provider_get_failed");
+    }
+    if (wireless_out_record.status != CapabilityProviderStatus::STALE) {
+        return fail("wireless_timeout_provider_not_stale");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS) != RegistryResult::OK) {
+        return fail("wireless_timeout_sim_refresh_failed");
+    }
+    if (!wireless_service_.checkTimeouts(wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS)) {
+        return fail("wireless_timeout_check_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_timeout_provider_get_failed");
+    }
+    if (wireless_out_record.status != CapabilityProviderStatus::LOST) {
+        return fail("wireless_timeout_provider_not_lost");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("wireless_timeout_active_get_failed");
+    }
+    if (!isSameText(active_provider.provider_id, "provider-sim-temperature-001")) {
+        return fail("wireless_timeout_active_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_timeout_temperature_missing");
+    }
+    if (temperature_payload.value_float != 22.4F) {
+        return fail("wireless_timeout_temperature_invalid");
+    }
+
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::UNAVAILABLE,
+            wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS + 1) != RegistryResult::OK) {
+        return fail("wireless_timeout_sim_unavailable_failed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            timeout_wireless_payload,
+            CapabilityProviderStatus::LOST,
+            wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS + 1) != RegistryResult::OK) {
+        return fail("wireless_timeout_wireless_lost_failed");
+    }
+    if (wireless_service_.checkTimeouts(wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS + 2)) {
+        return fail("wireless_timeout_no_provider_succeeded");
+    }
+    if (isSameText(wireless_service_.lastErrorCode(), "none")) {
+        return fail("wireless_timeout_no_provider_error_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_timeout_no_provider_temperature_missing");
+    }
+    if (temperature_payload.value_float != 22.4F) {
+        return fail("wireless_timeout_no_provider_temperature_changed");
+    }
+
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.sequence_id = 3;
+    header.node_id = 1001;
+    copyWirelessCapabilityId(value.capability_id, CAP_TEMPERATURE);
+    value.payload_type = WirelessPayloadType::FLOAT;
+    value.value_float = 24.0F;
+    value.value_int = 0;
+    copyWirelessCapabilityId(value.error_code, "none");
+    const uint32_t wireless_recovery_ms =
+        wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS + 3;
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_timeout_recovery_inject_failed");
+    }
+    if (!wireless_service_.processPackets(wireless_recovery_ms)) {
+        return fail("wireless_timeout_recovery_process_failed");
+    }
+    if (!wireless_service_.checkTimeouts(wireless_recovery_ms)) {
+        return fail("wireless_timeout_recovery_check_failed");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("wireless_timeout_recovery_active_get_failed");
+    }
+    if (!isSameText(active_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
+        return fail("wireless_timeout_recovery_active_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_timeout_recovery_temperature_missing");
+    }
+    if (temperature_payload.value_float != 24.0F) {
+        return fail("wireless_timeout_recovery_temperature_invalid");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            now_ms + 5) != RegistryResult::OK) {
+        return fail("wireless_timeout_sim_restore_failed");
+    }
+    recovered_wireless_payload.timestamp_ms = now_ms + 5;
+    recovered_wireless_payload.value_float = 24.0F;
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            recovered_wireless_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            now_ms + 5) != RegistryResult::OK) {
+        return fail("wireless_timeout_wireless_restore_failed");
+    }
+
     CapabilityProviderRecord newer_provider = provider;
     newer_provider.provider_id = "provider-newer-temperature-001";
     newer_provider.provider_type = CapabilityProviderType::WIRELESS;

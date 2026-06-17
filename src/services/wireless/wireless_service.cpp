@@ -1,5 +1,7 @@
 #include "wireless_service.h"
 
+#include "../../core/ids/capability_ids.h"
+
 namespace Cyber32 {
 
 const char* const WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID =
@@ -84,8 +86,32 @@ bool WirelessService::processPackets(uint32_t now_ms) {
 }
 
 bool WirelessService::checkTimeouts(uint32_t now_ms) {
-    (void)now_ms;
-    return hasRequiredAttachments();
+    last_process_result_ = false;
+
+    if (registry_ == 0) {
+        last_error_code_ = "registry_not_attached";
+        return false;
+    }
+
+    RegistryResult result = registry_->updateProviderHealth(now_ms);
+    if (result != RegistryResult::OK) {
+        last_error_code_ = "provider_health_failed";
+        return false;
+    }
+
+    result = registry_->updateBestCapabilityPayload(CAP_TEMPERATURE);
+    if (result == RegistryResult::OK) {
+        last_process_result_ = true;
+        last_error_code_ = "none";
+        return true;
+    }
+    if (result == RegistryResult::NOT_FOUND) {
+        last_error_code_ = "no_eligible_provider";
+        return false;
+    }
+
+    last_error_code_ = "best_provider_update_failed";
+    return false;
 }
 
 bool WirelessService::lastProcessResult() const {
