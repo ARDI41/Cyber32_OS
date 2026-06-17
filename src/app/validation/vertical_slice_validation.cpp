@@ -2860,6 +2860,115 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (temperature_payload.value_float != 23.5F) {
         return fail("selected_payload_temperature_value_invalid");
     }
+    if (registry_.updateBestCapabilityPayload(0) != RegistryResult::INVALID_ID) {
+        return fail("best_payload_null_id_result_invalid");
+    }
+    if (registry_.updateBestCapabilityPayload("") != RegistryResult::INVALID_ID) {
+        return fail("best_payload_empty_id_result_invalid");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::OK) {
+        return fail("best_payload_wireless_result_invalid");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("best_payload_wireless_active_missing");
+    }
+    if (!isSameText(active_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
+        return fail("best_payload_wireless_active_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("best_payload_wireless_temperature_missing");
+    }
+    if (temperature_payload.value_float != 23.5F) {
+        return fail("best_payload_wireless_temperature_invalid");
+    }
+
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record.latest_payload,
+            CapabilityProviderStatus::LOST,
+            now_ms + 2) != RegistryResult::OK) {
+        return fail("best_payload_wireless_lost_update_failed");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::OK) {
+        return fail("best_payload_failover_result_invalid");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("best_payload_failover_active_missing");
+    }
+    if (!isSameText(active_provider.provider_id, "provider-sim-temperature-001")) {
+        return fail("best_payload_failover_active_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("best_payload_failover_temperature_missing");
+    }
+    if (temperature_payload.value_float != 22.4F) {
+        return fail("best_payload_failover_temperature_invalid");
+    }
+
+    CapabilityPayload recovered_wireless_payload = wireless_out_record.latest_payload;
+    recovered_wireless_payload.timestamp_ms = now_ms + 3;
+    recovered_wireless_payload.value_float = 24.0F;
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            recovered_wireless_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            now_ms + 3) != RegistryResult::OK) {
+        return fail("best_payload_wireless_recovery_update_failed");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::OK) {
+        return fail("best_payload_recovery_result_invalid");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("best_payload_recovery_active_missing");
+    }
+    if (!isSameText(active_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
+        return fail("best_payload_recovery_active_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("best_payload_recovery_temperature_missing");
+    }
+    if (temperature_payload.value_float != 24.0F) {
+        return fail("best_payload_recovery_temperature_invalid");
+    }
+
+    CapabilityPayload sim_unavailable_payload = provider.latest_payload;
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            sim_unavailable_payload,
+            CapabilityProviderStatus::UNAVAILABLE,
+            now_ms + 4) != RegistryResult::OK) {
+        return fail("best_payload_sim_unavailable_update_failed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            recovered_wireless_payload,
+            CapabilityProviderStatus::LOST,
+            now_ms + 4) != RegistryResult::OK) {
+        return fail("best_payload_wireless_lost_again_failed");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::NOT_FOUND) {
+        return fail("best_payload_no_eligible_result_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("best_payload_no_eligible_temperature_missing");
+    }
+    if (temperature_payload.value_float != 24.0F) {
+        return fail("best_payload_no_eligible_temperature_changed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            now_ms + 5) != RegistryResult::OK) {
+        return fail("best_payload_sim_restore_failed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            recovered_wireless_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            now_ms + 5) != RegistryResult::OK) {
+        return fail("best_payload_wireless_restore_failed");
+    }
 
     CapabilityProviderRecord newer_provider = provider;
     newer_provider.provider_id = "provider-newer-temperature-001";
@@ -3031,7 +3140,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (temperature_payload.value_type != PayloadValueType::FLOAT) {
         return fail("provider_temperature_type_after_selected");
     }
-    if (temperature_payload.value_float != 23.5F) {
+    if (temperature_payload.value_float != 24.0F) {
         return fail("provider_temperature_selected_value_invalid");
     }
     if (registry_.moduleCount() != 5) {

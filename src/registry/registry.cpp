@@ -430,6 +430,25 @@ RegistryResult Registry::updateSelectedCapabilityPayload(const char* capability_
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::updateBestCapabilityPayload(const char* capability_id) {
+    if (!isTextPresent(capability_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    ActiveCapabilityProvider selected_provider;
+    RegistryResult result = selectBestProvider(capability_id, selected_provider);
+    if (result != RegistryResult::OK) {
+        return result;
+    }
+
+    result = setActiveProvider(capability_id, selected_provider.provider_id);
+    if (result != RegistryResult::OK) {
+        return result;
+    }
+
+    return updateSelectedCapabilityPayload(capability_id);
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
