@@ -49,6 +49,7 @@ public:
     RegistryResult getCommandState(const char* capability_id, CommandStateRecord& out_record) const;
     RegistryWriteResult registerCapabilityProviderWithResult(const CapabilityProviderRecord& record);
     RegistryResult getCapabilityProvider(const char* provider_id, CapabilityProviderRecord& out_record) const;
+    RegistryResult getCapabilityProviderByIndex(uint8_t index, CapabilityProviderRecord& out_record) const;
     RegistryResult updateCapabilityProviderPayload(
         const char* provider_id,
         const CapabilityPayload& payload,
@@ -56,6 +57,7 @@ public:
         uint32_t now_ms);
     RegistryResult setActiveProvider(const char* capability_id, const char* provider_id);
     RegistryResult getActiveProvider(const char* capability_id, ActiveCapabilityProvider& out_provider) const;
+    bool isActiveProvider(const char* capability_id, const char* provider_id) const;
     RegistryResult selectBestProvider(const char* capability_id, ActiveCapabilityProvider& out_provider) const;
     RegistryResult updateSelectedCapabilityPayload(const char* capability_id);
     RegistryResult updateBestCapabilityPayload(const char* capability_id);

@@ -27,6 +27,13 @@ public:
     bool getServoCommandState(ApiCommandStateResponse& out_response);
     bool getMotorCommandState(ApiCommandStateResponse& out_response);
     bool getRelayCommandState(ApiCommandStateResponse& out_response);
+    bool getProviderDiagnostic(
+        const char* provider_id,
+        ApiProviderDiagnostic& out_response);
+    bool getActiveProviderDiagnostic(
+        const char* capability_id,
+        ApiProviderDiagnostic& out_response);
+    bool getProviderSummary(ApiProviderSummary& out_response);
     bool commandServoPosition(
         uint32_t now_ms,
         const ApiServoCommandRequest& request,
@@ -65,6 +72,14 @@ private:
         RegistryResult registry_result) const;
     void fillUnavailableRelayCommandState(
         ApiCommandStateResponse& out_response,
+        RegistryResult registry_result) const;
+    void fillUnavailableProviderDiagnostic(
+        ApiProviderDiagnostic& out_response,
+        RegistryResult registry_result,
+        const char* provider_id,
+        const char* capability_id) const;
+    void fillUnavailableProviderSummary(
+        ApiProviderSummary& out_response,
         RegistryResult registry_result) const;
 };
 

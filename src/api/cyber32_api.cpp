@@ -8,6 +8,10 @@
 
 namespace Cyber32 {
 
+static bool isApiTextPresent(const char* value) {
+    return value != 0 && value[0] != '\0';
+}
+
 Cyber32Api::Cyber32Api()
     : registry_(0),
       runtime_(0),
@@ -227,6 +231,75 @@ bool Cyber32Api::getRelayCommandState(ApiCommandStateResponse& out_response) {
     out_response.value_float = record.value_float;
     out_response.value_int = record.value_int;
     out_response.timestamp_ms = record.timestamp_ms;
+    return true;
+}
+
+bool Cyber32Api::getProviderDiagnostic(
+    const char* provider_id,
+    ApiProviderDiagnostic& out_response) {
+    if (!isApiTextPresent(provider_id)) {
+        fillUnavailableProviderDiagnostic(out_response, RegistryResult::INVALID_ID, provider_id, 0);
+        return false;
+    }
+    if (registry_ == 0) {
+        fillUnavailableProviderDiagnostic(out_response, RegistryResult::NOT_ATTACHED, provider_id, 0);
+        return false;
+    }
+
+    CapabilityProviderRecord provider;
+    const RegistryResult result = registry_->getCapabilityProvider(provider_id, provider);
+    if (result != RegistryResult::OK) {
+        fillUnavailableProviderDiagnostic(out_response, result, provider_id, 0);
+        return false;
+    }
+
+    out_response.ok = true;
+    out_response.registry_result = RegistryResult::OK;
+    out_response.provider_id = provider.provider_id;
+    out_response.capability_id = provider.capability_id;
+    out_response.provider_type = provider.provider_type;
+    out_response.status = provider.status;
+    out_response.priority = provider.priority;
+    out_response.last_update_ms = provider.last_update_ms;
+    out_response.active = registry_->isActiveProvider(provider.capability_id, provider.provider_id);
+    out_response.latest_payload = provider.latest_payload;
+    out_response.error_code = "none";
+    return true;
+}
+
+bool Cyber32Api::getActiveProviderDiagnostic(
+    const char* capability_id,
+    ApiProviderDiagnostic& out_response) {
+    if (!isApiTextPresent(capability_id)) {
+        fillUnavailableProviderDiagnostic(out_response, RegistryResult::INVALID_ID, 0, capability_id);
+        return false;
+    }
+    if (registry_ == 0) {
+        fillUnavailableProviderDiagnostic(out_response, RegistryResult::NOT_ATTACHED, 0, capability_id);
+        return false;
+    }
+
+    ActiveCapabilityProvider active_provider;
+    const RegistryResult result = registry_->getActiveProvider(capability_id, active_provider);
+    if (result != RegistryResult::OK) {
+        fillUnavailableProviderDiagnostic(out_response, result, 0, capability_id);
+        return false;
+    }
+
+    return getProviderDiagnostic(active_provider.provider_id, out_response);
+}
+
+bool Cyber32Api::getProviderSummary(ApiProviderSummary& out_response) {
+    if (registry_ == 0) {
+        fillUnavailableProviderSummary(out_response, RegistryResult::NOT_ATTACHED);
+        return false;
+    }
+
+    out_response.ok = true;
+    out_response.registry_result = RegistryResult::OK;
+    out_response.provider_count = registry_->capabilityProviderCount();
+    out_response.active_provider_count = registry_->activeProviderCount();
+    out_response.error_code = "none";
     return true;
 }
 
@@ -484,6 +557,44 @@ void Cyber32Api::fillUnavailableRelayCommandState(
     out_response.value_float = 0.0F;
     out_response.value_int = 0;
     out_response.timestamp_ms = 0;
+}
+
+void Cyber32Api::fillUnavailableProviderDiagnostic(
+    ApiProviderDiagnostic& out_response,
+    RegistryResult registry_result,
+    const char* provider_id,
+    const char* capability_id) const {
+    out_response.ok = false;
+    out_response.registry_result = registry_result;
+    out_response.provider_id = provider_id;
+    out_response.capability_id = capability_id;
+    out_response.provider_type = CapabilityProviderType::UNKNOWN;
+    out_response.status = CapabilityProviderStatus::UNKNOWN;
+    out_response.priority = 0;
+    out_response.last_update_ms = 0;
+    out_response.active = false;
+    out_response.latest_payload.capability_id = capability_id;
+    out_response.latest_payload.schema_version = 1;
+    out_response.latest_payload.timestamp_ms = 0;
+    out_response.latest_payload.available = Availability::UNAVAILABLE;
+    out_response.latest_payload.stale = StaleState::STALE;
+    out_response.latest_payload.value_type = PayloadValueType::NONE;
+    out_response.latest_payload.value_float = 0.0F;
+    out_response.latest_payload.value_int = 0;
+    out_response.latest_payload.unit = "";
+    out_response.latest_payload.quality = "unavailable";
+    out_response.latest_payload.error_code = ERR_CAPABILITY_UNAVAILABLE;
+    out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
+}
+
+void Cyber32Api::fillUnavailableProviderSummary(
+    ApiProviderSummary& out_response,
+    RegistryResult registry_result) const {
+    out_response.ok = false;
+    out_response.registry_result = registry_result;
+    out_response.provider_count = 0;
+    out_response.active_provider_count = 0;
+    out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
 }
 
 }  // namespace Cyber32

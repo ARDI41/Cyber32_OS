@@ -3638,6 +3638,122 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("selected_restore_payload_failed");
     }
 
+    ApiCapabilityState temperature_api_before_diagnostics;
+    if (!api_.getTemperatureState(temperature_api_before_diagnostics)) {
+        return fail("provider_diag_temperature_before_missing");
+    }
+    if (temperature_api_before_diagnostics.payload.value_float != 24.0F) {
+        return fail("provider_diag_temperature_before_invalid");
+    }
+
+    ApiProviderDiagnostic provider_diagnostic;
+    if (!api_.getProviderDiagnostic(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_diagnostic)) {
+        return fail("provider_diag_wireless_get_failed");
+    }
+    if (!provider_diagnostic.ok) {
+        return fail("provider_diag_wireless_not_ok");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::OK) {
+        return fail("provider_diag_wireless_result_invalid");
+    }
+    if (!isSameText(provider_diagnostic.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
+        return fail("provider_diag_wireless_id_invalid");
+    }
+    if (!isSameText(provider_diagnostic.capability_id, CAP_TEMPERATURE)) {
+        return fail("provider_diag_wireless_capability_invalid");
+    }
+    if (provider_diagnostic.provider_type != CapabilityProviderType::WIRELESS) {
+        return fail("provider_diag_wireless_type_invalid");
+    }
+    if (!isSameText(provider_diagnostic.latest_payload.capability_id, CAP_TEMPERATURE)) {
+        return fail("provider_diag_wireless_payload_capability_invalid");
+    }
+
+    if (registry_.setActiveProvider(CAP_TEMPERATURE, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID) !=
+        RegistryResult::OK) {
+        return fail("provider_diag_active_setup_failed");
+    }
+    if (!api_.getActiveProviderDiagnostic(CAP_TEMPERATURE, provider_diagnostic)) {
+        return fail("provider_diag_active_get_failed");
+    }
+    if (!provider_diagnostic.ok || !provider_diagnostic.active) {
+        return fail("provider_diag_active_flag_invalid");
+    }
+    if (!isSameText(provider_diagnostic.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
+        return fail("provider_diag_active_id_invalid");
+    }
+
+    ApiProviderSummary provider_summary;
+    if (!api_.getProviderSummary(provider_summary)) {
+        return fail("provider_summary_get_failed");
+    }
+    if (!provider_summary.ok) {
+        return fail("provider_summary_not_ok");
+    }
+    if (provider_summary.registry_result != RegistryResult::OK) {
+        return fail("provider_summary_result_invalid");
+    }
+    if (provider_summary.provider_count != registry_.capabilityProviderCount()) {
+        return fail("provider_summary_count_invalid");
+    }
+    if (provider_summary.active_provider_count != registry_.activeProviderCount()) {
+        return fail("provider_summary_active_count_invalid");
+    }
+
+    if (api_.getProviderDiagnostic("provider-missing", provider_diagnostic)) {
+        return fail("provider_diag_missing_succeeded");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::NOT_FOUND) {
+        return fail("provider_diag_missing_result_invalid");
+    }
+    if (api_.getProviderDiagnostic(0, provider_diagnostic)) {
+        return fail("provider_diag_null_succeeded");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::INVALID_ID) {
+        return fail("provider_diag_null_result_invalid");
+    }
+    if (api_.getProviderDiagnostic("", provider_diagnostic)) {
+        return fail("provider_diag_empty_succeeded");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::INVALID_ID) {
+        return fail("provider_diag_empty_result_invalid");
+    }
+    if (api_.getActiveProviderDiagnostic(0, provider_diagnostic)) {
+        return fail("provider_diag_active_null_succeeded");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::INVALID_ID) {
+        return fail("provider_diag_active_null_result_invalid");
+    }
+    if (api_.getActiveProviderDiagnostic("", provider_diagnostic)) {
+        return fail("provider_diag_active_empty_succeeded");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::INVALID_ID) {
+        return fail("provider_diag_active_empty_result_invalid");
+    }
+    if (api_.getActiveProviderDiagnostic(CAP_DISTANCE, provider_diagnostic)) {
+        return fail("provider_diag_distance_active_succeeded");
+    }
+    if (provider_diagnostic.registry_result != RegistryResult::NOT_FOUND) {
+        return fail("provider_diag_distance_active_result_invalid");
+    }
+
+    ApiCapabilityState temperature_api_after_diagnostics;
+    if (!api_.getTemperatureState(temperature_api_after_diagnostics)) {
+        return fail("provider_diag_temperature_after_missing");
+    }
+    if (temperature_api_after_diagnostics.payload.value_float !=
+        temperature_api_before_diagnostics.payload.value_float) {
+        return fail("provider_diag_temperature_changed");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("provider_diag_active_after_missing");
+    }
+    if (!isSameText(active_provider.provider_id, WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID)) {
+        return fail("provider_diag_active_changed");
+    }
+
     CapabilityProviderRecord invalid_provider = provider;
     invalid_provider.provider_id = 0;
     if (registry_.registerCapabilityProviderWithResult(invalid_provider).result !=
