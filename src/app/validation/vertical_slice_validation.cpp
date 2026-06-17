@@ -16,6 +16,8 @@ VerticalSliceValidation::VerticalSliceValidation()
       motor_service_command_task_context_(),
       relay_service_state_task_context_(),
       relay_service_command_task_context_(),
+      wireless_service_process_task_context_(),
+      wireless_service_timeout_task_context_(),
       passed_(false),
       last_error_("not_run") {
 }
@@ -320,6 +322,16 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     relay_service_command_task_context_.last_result = false;
     relay_service_command_task_context_.last_error = "not_run";
 
+    wireless_service_process_task_context_.now_ms = now_ms;
+    wireless_service_process_task_context_.ran = false;
+    wireless_service_process_task_context_.last_result = false;
+    wireless_service_process_task_context_.last_error = "not_run";
+
+    wireless_service_timeout_task_context_.now_ms = now_ms;
+    wireless_service_timeout_task_context_.ran = false;
+    wireless_service_timeout_task_context_.last_result = false;
+    wireless_service_timeout_task_context_.last_error = "not_run";
+
     runtime_.update(now_ms);
 
     if (!validateRuntimeTaskState()) {
@@ -519,6 +531,32 @@ void VerticalSliceValidation::runRelayServiceCommandTask(void* context) {
     task_context->last_error = task_context->last_result ? "none" : "relay_command_execute_failed";
 }
 
+void VerticalSliceValidation::runWirelessServiceProcessTask(void* context) {
+    WirelessServiceProcessTaskContext* task_context =
+        static_cast<WirelessServiceProcessTaskContext*>(context);
+    if (task_context == 0 || task_context->service == 0) {
+        return;
+    }
+
+    task_context->ran = true;
+    task_context->last_result = task_context->service->processPackets(task_context->now_ms);
+    task_context->last_error =
+        task_context->last_result ? "none" : task_context->service->lastErrorCode();
+}
+
+void VerticalSliceValidation::runWirelessServiceTimeoutTask(void* context) {
+    WirelessServiceTimeoutTaskContext* task_context =
+        static_cast<WirelessServiceTimeoutTaskContext*>(context);
+    if (task_context == 0 || task_context->service == 0) {
+        return;
+    }
+
+    task_context->ran = true;
+    task_context->last_result = task_context->service->checkTimeouts(task_context->now_ms);
+    task_context->last_error =
+        task_context->last_result ? "none" : task_context->service->lastErrorCode();
+}
+
 bool VerticalSliceValidation::registerRuntimeTasks() {
     service_task_context_.service = &temperature_service_;
     service_task_context_.now_ms = 0;
@@ -571,6 +609,18 @@ bool VerticalSliceValidation::registerRuntimeTasks() {
     relay_service_command_task_context_.ran = false;
     relay_service_command_task_context_.last_result = false;
     relay_service_command_task_context_.last_error = "not_run";
+
+    wireless_service_process_task_context_.service = &wireless_service_;
+    wireless_service_process_task_context_.now_ms = 0;
+    wireless_service_process_task_context_.ran = false;
+    wireless_service_process_task_context_.last_result = false;
+    wireless_service_process_task_context_.last_error = "not_run";
+
+    wireless_service_timeout_task_context_.service = &wireless_service_;
+    wireless_service_timeout_task_context_.now_ms = 0;
+    wireless_service_timeout_task_context_.ran = false;
+    wireless_service_timeout_task_context_.last_result = false;
+    wireless_service_timeout_task_context_.last_error = "not_run";
 
     RuntimeTask service_task;
     service_task.task_id = "task.temperature_service.update";
@@ -661,6 +711,32 @@ bool VerticalSliceValidation::registerRuntimeTasks() {
 
     if (!runtime_.registerTask(relay_service_command_task)) {
         return fail("relay_service_command_task_register_failed");
+    }
+
+    RuntimeTask wireless_service_process_task;
+    wireless_service_process_task.task_id = "task.wireless_service.process_packets";
+    wireless_service_process_task.enabled = true;
+    wireless_service_process_task.period_ms = 250;
+    wireless_service_process_task.next_run_ms = 0;
+    wireless_service_process_task.last_run_ms = 0;
+    wireless_service_process_task.callback = &VerticalSliceValidation::runWirelessServiceProcessTask;
+    wireless_service_process_task.context = &wireless_service_process_task_context_;
+
+    if (!runtime_.registerTask(wireless_service_process_task)) {
+        return fail("wireless_service_process_task_register_failed");
+    }
+
+    RuntimeTask wireless_service_timeout_task;
+    wireless_service_timeout_task.task_id = "task.wireless_service.check_timeouts";
+    wireless_service_timeout_task.enabled = true;
+    wireless_service_timeout_task.period_ms = 1000;
+    wireless_service_timeout_task.next_run_ms = 0;
+    wireless_service_timeout_task.last_run_ms = 0;
+    wireless_service_timeout_task.callback = &VerticalSliceValidation::runWirelessServiceTimeoutTask;
+    wireless_service_timeout_task.context = &wireless_service_timeout_task_context_;
+
+    if (!runtime_.registerTask(wireless_service_timeout_task)) {
+        return fail("wireless_service_timeout_task_register_failed");
     }
 
     RuntimeTask logic_task;
@@ -2520,7 +2596,7 @@ bool VerticalSliceValidation::validateRuntimeSafeModeHelpers() {
 }
 
 bool VerticalSliceValidation::validateRuntimeTaskState() {
-    if (runtime_.taskCount() < 9) {
+    if (runtime_.taskCount() < 11) {
         return fail("runtime_task_count_invalid");
     }
     if (!service_task_context_.ran) {
@@ -2555,6 +2631,12 @@ bool VerticalSliceValidation::validateRuntimeTaskState() {
     }
     if (!relay_service_command_task_context_.ran) {
         return fail("relay_service_command_task_not_run");
+    }
+    if (!wireless_service_process_task_context_.ran) {
+        return fail("wireless_service_process_task_not_run");
+    }
+    if (!wireless_service_timeout_task_context_.ran) {
+        return fail("wireless_service_timeout_task_not_run");
     }
     if (!logic_task_context_.ran) {
         return fail("logic_task_not_run");
@@ -3270,6 +3352,141 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (temperature_payload.value_float != 24.0F) {
         return fail("wireless_timeout_recovery_temperature_invalid");
     }
+
+    const uint32_t runtime_wireless_process_ms = now_ms + 70000;
+    CapabilityPayload runtime_wireless_payload = wireless_out_record.latest_payload;
+    runtime_wireless_payload.timestamp_ms = runtime_wireless_process_ms;
+    runtime_wireless_payload.value_float = 23.5F;
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            runtime_wireless_process_ms) != RegistryResult::OK) {
+        return fail("runtime_wireless_sim_setup_failed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            runtime_wireless_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            runtime_wireless_process_ms) != RegistryResult::OK) {
+        return fail("runtime_wireless_provider_setup_failed");
+    }
+
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.sequence_id = 4;
+    header.node_id = 1001;
+    copyWirelessCapabilityId(value.capability_id, CAP_TEMPERATURE);
+    value.payload_type = WirelessPayloadType::FLOAT;
+    value.value_float = 25.0F;
+    value.value_int = 0;
+    copyWirelessCapabilityId(value.error_code, "none");
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("runtime_wireless_packet_inject_failed");
+    }
+    wireless_service_process_task_context_.now_ms = runtime_wireless_process_ms;
+    wireless_service_process_task_context_.ran = false;
+    wireless_service_process_task_context_.last_result = false;
+    wireless_service_process_task_context_.last_error = "not_run";
+    wireless_service_timeout_task_context_.now_ms = runtime_wireless_process_ms;
+    wireless_service_timeout_task_context_.ran = false;
+    wireless_service_timeout_task_context_.last_result = false;
+    wireless_service_timeout_task_context_.last_error = "not_run";
+    runtime_.update(runtime_wireless_process_ms);
+    if (!wireless_service_process_task_context_.ran) {
+        return fail("runtime_wireless_process_task_not_run");
+    }
+    if (!wireless_service_process_task_context_.last_result) {
+        return fail(wireless_service_process_task_context_.last_error);
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("runtime_wireless_packet_not_cleared");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("runtime_wireless_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 25.0F) {
+        return fail("runtime_wireless_provider_value_invalid");
+    }
+    if (!wireless_service_timeout_task_context_.ran) {
+        return fail("runtime_wireless_timeout_task_not_run");
+    }
+    if (!wireless_service_timeout_task_context_.last_result) {
+        return fail(wireless_service_timeout_task_context_.last_error);
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("runtime_wireless_temperature_missing");
+    }
+    if (temperature_payload.value_float != 25.0F) {
+        return fail("runtime_wireless_temperature_invalid");
+    }
+
+    const uint32_t runtime_wireless_timeout_base_ms = runtime_wireless_process_ms + 5000;
+    CapabilityPayload timeout_task_wireless_payload = wireless_out_record.latest_payload;
+    timeout_task_wireless_payload.timestamp_ms = runtime_wireless_timeout_base_ms;
+    timeout_task_wireless_payload.value_float = 25.0F;
+    if (registry_.updateCapabilityProviderPayload(
+            "provider-sim-temperature-001",
+            provider.latest_payload,
+            CapabilityProviderStatus::AVAILABLE,
+            runtime_wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS) != RegistryResult::OK) {
+        return fail("runtime_wireless_timeout_sim_setup_failed");
+    }
+    if (registry_.updateCapabilityProviderPayload(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            timeout_task_wireless_payload,
+            CapabilityProviderStatus::STALE,
+            runtime_wireless_timeout_base_ms) != RegistryResult::OK) {
+        return fail("runtime_wireless_timeout_provider_setup_failed");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::OK) {
+        return fail("runtime_wireless_timeout_initial_best_failed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("runtime_wireless_timeout_initial_missing");
+    }
+    if (temperature_payload.value_float != 25.0F) {
+        return fail("runtime_wireless_timeout_initial_invalid");
+    }
+    wireless_service_process_task_context_.now_ms =
+        runtime_wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS;
+    wireless_service_process_task_context_.ran = false;
+    wireless_service_process_task_context_.last_result = false;
+    wireless_service_process_task_context_.last_error = "not_run";
+    wireless_service_timeout_task_context_.now_ms =
+        runtime_wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS;
+    wireless_service_timeout_task_context_.ran = false;
+    wireless_service_timeout_task_context_.last_result = false;
+    wireless_service_timeout_task_context_.last_error = "not_run";
+    runtime_.update(runtime_wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS);
+    if (!wireless_service_timeout_task_context_.ran) {
+        return fail("runtime_wireless_timeout_not_run");
+    }
+    if (!wireless_service_timeout_task_context_.last_result) {
+        return fail(wireless_service_timeout_task_context_.last_error);
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("runtime_wireless_timeout_provider_get_failed");
+    }
+    if (wireless_out_record.status != CapabilityProviderStatus::LOST) {
+        return fail("runtime_wireless_timeout_provider_not_lost");
+    }
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, active_provider) != RegistryResult::OK) {
+        return fail("runtime_wireless_timeout_active_get_failed");
+    }
+    if (!isSameText(active_provider.provider_id, "provider-sim-temperature-001")) {
+        return fail("runtime_wireless_timeout_active_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("runtime_wireless_timeout_temperature_missing");
+    }
+    if (temperature_payload.value_float != 22.4F) {
+        return fail("runtime_wireless_timeout_temperature_invalid");
+    }
+
     if (registry_.updateCapabilityProviderPayload(
             "provider-sim-temperature-001",
             provider.latest_payload,
@@ -3285,6 +3502,9 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
             CapabilityProviderStatus::AVAILABLE,
             now_ms + 5) != RegistryResult::OK) {
         return fail("wireless_timeout_wireless_restore_failed");
+    }
+    if (registry_.updateBestCapabilityPayload(CAP_TEMPERATURE) != RegistryResult::OK) {
+        return fail("wireless_timeout_best_restore_failed");
     }
 
     CapabilityProviderRecord newer_provider = provider;

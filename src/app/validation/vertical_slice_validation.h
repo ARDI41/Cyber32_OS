@@ -113,6 +113,22 @@ private:
         const char* last_error;
     };
 
+    struct WirelessServiceProcessTaskContext {
+        WirelessService* service;
+        uint32_t now_ms;
+        bool ran;
+        bool last_result;
+        const char* last_error;
+    };
+
+    struct WirelessServiceTimeoutTaskContext {
+        WirelessService* service;
+        uint32_t now_ms;
+        bool ran;
+        bool last_result;
+        const char* last_error;
+    };
+
     EventBus event_bus_;
     Registry registry_;
     Runtime runtime_;
@@ -149,6 +165,8 @@ private:
     MotorServiceCommandTaskContext motor_service_command_task_context_;
     RelayServiceStateTaskContext relay_service_state_task_context_;
     RelayServiceCommandTaskContext relay_service_command_task_context_;
+    WirelessServiceProcessTaskContext wireless_service_process_task_context_;
+    WirelessServiceTimeoutTaskContext wireless_service_timeout_task_context_;
     bool passed_;
     const char* last_error_;
 
@@ -161,6 +179,8 @@ private:
     static void runMotorServiceCommandTask(void* context);
     static void runRelayServiceStateTask(void* context);
     static void runRelayServiceCommandTask(void* context);
+    static void runWirelessServiceProcessTask(void* context);
+    static void runWirelessServiceTimeoutTask(void* context);
 
     bool registerRuntimeTasks();
     bool fail(const char* error);
