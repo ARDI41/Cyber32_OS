@@ -2856,6 +2856,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     diagnostics.battery_voltage = 0.0F;
     diagnostics.signal_quality_percent = 75.0F;
 
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_packet_inject_failed");
     }
@@ -2897,8 +2898,66 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
 
     wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
     header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.sequence_id = 19;
+    value.value_float = 30.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_checksum_valid_inject_failed");
+    }
+    if (!wireless_service_.processPackets(now_ms + 19)) {
+        return fail("wireless_checksum_valid_process_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_checksum_valid_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 30.0F) {
+        return fail("wireless_checksum_valid_provider_invalid");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_checksum_valid_canonical_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    header.sequence_id = 18;
+    value.value_float = 31.0F;
+    header.checksum =
+        static_cast<uint16_t>(calculateWirelessPacketChecksum(header, value, diagnostics) + 1);
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_checksum_invalid_inject_failed");
+    }
+    if (wireless_service_.processPackets(now_ms + 18)) {
+        return fail("wireless_checksum_invalid_process_succeeded");
+    }
+    if (!isSameText(wireless_service_.lastErrorCode(), "wireless_checksum_invalid")) {
+        return fail("wireless_checksum_invalid_error_invalid");
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("wireless_checksum_invalid_packet_not_cleared");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_checksum_invalid_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 30.0F) {
+        return fail("wireless_checksum_invalid_provider_changed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_checksum_invalid_canonical_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
     header.sequence_id = 20;
     value.value_float = 26.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_trust_trusted_inject_failed");
     }
@@ -2923,6 +2982,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     wireless_temperature_device_.setTrustState(WirelessTrustState::UNTRUSTED);
     header.sequence_id = 21;
     value.value_float = 27.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_trust_untrusted_inject_failed");
     }
@@ -2953,6 +3013,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     wireless_temperature_device_.setTrustState(WirelessTrustState::BLOCKED);
     header.sequence_id = 22;
     value.value_float = 28.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_trust_blocked_inject_failed");
     }
@@ -2983,6 +3044,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     wireless_temperature_device_.setTrustState(WirelessTrustState::UNKNOWN);
     header.sequence_id = 23;
     value.value_float = 29.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_trust_unknown_inject_failed");
     }
@@ -3013,6 +3075,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
     header.sequence_id = 24;
     value.value_float = 23.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_trust_restore_inject_failed");
     }
@@ -3030,6 +3093,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
 
     header.sequence_id = 2;
     header.packet_type = WirelessPacketType::NODE_HEARTBEAT;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_invalid_packet_inject_failed");
     }
@@ -3464,6 +3528,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     copyWirelessCapabilityId(value.error_code, "none");
     const uint32_t wireless_recovery_ms =
         wireless_timeout_base_ms + Registry::PROVIDER_LOST_TIMEOUT_MS + 3;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("wireless_timeout_recovery_inject_failed");
     }
@@ -3513,6 +3578,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     value.value_float = 25.0F;
     value.value_int = 0;
     copyWirelessCapabilityId(value.error_code, "none");
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
         return fail("runtime_wireless_packet_inject_failed");
     }

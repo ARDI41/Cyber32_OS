@@ -59,6 +59,11 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         return false;
     }
 
+    if (!wirelessPacketChecksumValid(header, value, diagnostics)) {
+        last_error_code_ = "wireless_checksum_invalid";
+        return false;
+    }
+
     if (!wirelessTrustAllowsPayloadUpdate(temperature_device_->trustState())) {
         last_error_code_ = "wireless_untrusted";
         return false;

@@ -36,6 +36,7 @@ struct WirelessPacketHeader {
     uint16_t sequence_id;
     uint32_t node_id;
     uint8_t payload_length;
+    uint16_t checksum;
 };
 
 struct WirelessCapabilityValue {
@@ -52,5 +53,85 @@ struct WirelessNodeDiagnostics {
     float battery_voltage;
     float signal_quality_percent;
 };
+
+inline uint16_t addWirelessChecksumBytes(
+    uint16_t checksum,
+    const void* value,
+    uint8_t size) {
+    const uint8_t* bytes = static_cast<const uint8_t*>(value);
+    for (uint8_t i = 0; i < size; ++i) {
+        checksum = static_cast<uint16_t>(checksum + bytes[i]);
+    }
+    return checksum;
+}
+
+inline uint16_t addWirelessChecksumUint8(uint16_t checksum, uint8_t value) {
+    return static_cast<uint16_t>(checksum + value);
+}
+
+inline uint16_t calculateWirelessPacketChecksum(
+    const WirelessPacketHeader& header,
+    const WirelessCapabilityValue& value,
+    const WirelessNodeDiagnostics& diagnostics) {
+    uint16_t checksum = 0;
+
+    checksum = addWirelessChecksumBytes(checksum, &header.magic, sizeof(header.magic));
+    checksum = addWirelessChecksumUint8(checksum, header.protocol_version);
+    checksum = addWirelessChecksumUint8(
+        checksum,
+        static_cast<uint8_t>(header.packet_type));
+    checksum = addWirelessChecksumUint8(checksum, header.flags);
+    checksum = addWirelessChecksumBytes(
+        checksum,
+        &header.sequence_id,
+        sizeof(header.sequence_id));
+    checksum = addWirelessChecksumBytes(checksum, &header.node_id, sizeof(header.node_id));
+    checksum = addWirelessChecksumUint8(checksum, header.payload_length);
+
+    for (uint8_t i = 0; i < WIRELESS_CAPABILITY_ID_SIZE; ++i) {
+        checksum = addWirelessChecksumUint8(
+            checksum,
+            static_cast<uint8_t>(value.capability_id[i]));
+    }
+    checksum = addWirelessChecksumUint8(
+        checksum,
+        static_cast<uint8_t>(value.payload_type));
+    checksum = addWirelessChecksumBytes(
+        checksum,
+        &value.value_float,
+        sizeof(value.value_float));
+    checksum = addWirelessChecksumBytes(checksum, &value.value_int, sizeof(value.value_int));
+
+    for (uint8_t i = 0; i < WIRELESS_ERROR_CODE_SIZE; ++i) {
+        checksum = addWirelessChecksumUint8(
+            checksum,
+            static_cast<uint8_t>(value.error_code[i]));
+    }
+
+    const uint8_t battery_present = diagnostics.battery_present ? 1 : 0;
+    checksum = addWirelessChecksumUint8(checksum, battery_present);
+    checksum = addWirelessChecksumBytes(
+        checksum,
+        &diagnostics.battery_level_percent,
+        sizeof(diagnostics.battery_level_percent));
+    checksum = addWirelessChecksumBytes(
+        checksum,
+        &diagnostics.battery_voltage,
+        sizeof(diagnostics.battery_voltage));
+    checksum = addWirelessChecksumBytes(
+        checksum,
+        &diagnostics.signal_quality_percent,
+        sizeof(diagnostics.signal_quality_percent));
+
+    return checksum;
+}
+
+inline bool wirelessPacketChecksumValid(
+    const WirelessPacketHeader& header,
+    const WirelessCapabilityValue& value,
+    const WirelessNodeDiagnostics& diagnostics) {
+    return header.checksum ==
+           calculateWirelessPacketChecksum(header, value, diagnostics);
+}
 
 }  // namespace Cyber32
