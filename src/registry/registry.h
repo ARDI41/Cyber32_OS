@@ -23,6 +23,8 @@ public:
     static constexpr uint8_t MAX_COMMAND_STATES = 8;
     static constexpr uint8_t MAX_CAPABILITY_PROVIDERS = 16;
     static constexpr uint8_t MAX_ACTIVE_CAPABILITY_PROVIDERS = 16;
+    static constexpr uint32_t PROVIDER_STALE_TIMEOUT_MS = 5000;
+    static constexpr uint32_t PROVIDER_LOST_TIMEOUT_MS = 15000;
     static constexpr int8_t NOT_FOUND = -1;
 
     Registry();
@@ -57,6 +59,7 @@ public:
     RegistryResult selectBestProvider(const char* capability_id, ActiveCapabilityProvider& out_provider) const;
     RegistryResult updateSelectedCapabilityPayload(const char* capability_id);
     RegistryResult updateBestCapabilityPayload(const char* capability_id);
+    RegistryResult updateProviderHealth(uint32_t now_ms);
 
     uint8_t moduleCount() const;
     uint8_t deviceCount() const;

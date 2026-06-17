@@ -449,6 +449,25 @@ RegistryResult Registry::updateBestCapabilityPayload(const char* capability_id) 
     return updateSelectedCapabilityPayload(capability_id);
 }
 
+RegistryResult Registry::updateProviderHealth(uint32_t now_ms) {
+    for (uint8_t i = 0; i < capability_provider_count_; ++i) {
+        CapabilityProviderRecord& provider = capability_providers_[i];
+        const uint32_t age_ms = now_ms - provider.last_update_ms;
+
+        if (provider.status == CapabilityProviderStatus::AVAILABLE) {
+            if (age_ms >= PROVIDER_STALE_TIMEOUT_MS) {
+                provider.status = CapabilityProviderStatus::STALE;
+            }
+        } else if (provider.status == CapabilityProviderStatus::STALE) {
+            if (age_ms >= PROVIDER_LOST_TIMEOUT_MS) {
+                provider.status = CapabilityProviderStatus::LOST;
+            }
+        }
+    }
+
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
