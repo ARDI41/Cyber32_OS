@@ -383,6 +383,53 @@ RegistryResult Registry::selectBestProvider(
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::updateSelectedCapabilityPayload(const char* capability_id) {
+    if (!isTextPresent(capability_id)) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t active_index = findActiveProviderIndex(capability_id);
+    if (active_index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    const int8_t provider_index =
+        findCapabilityProviderIndex(active_capability_providers_[active_index].provider_id);
+    if (provider_index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    const CapabilityProviderRecord& provider = capability_providers_[provider_index];
+    if (!isSameId(provider.capability_id, capability_id) ||
+        !isSameId(provider.latest_payload.capability_id, capability_id)) {
+        return RegistryResult::INVALID_RECORD;
+    }
+
+    if (provider.status == CapabilityProviderStatus::UNAVAILABLE ||
+        provider.status == CapabilityProviderStatus::LOST ||
+        provider.status == CapabilityProviderStatus::DISABLED) {
+        return RegistryResult::UNAVAILABLE;
+    }
+
+    if (provider.status == CapabilityProviderStatus::STALE &&
+        (provider.latest_payload.available != Availability::AVAILABLE ||
+         provider.latest_payload.stale != StaleState::STALE)) {
+        return RegistryResult::UNAVAILABLE;
+    }
+
+    const int8_t capability_index = findCapabilityIndex(capability_id);
+    if (capability_index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    if (!isValidPayloadForCapability(provider.latest_payload, capabilities_[capability_index])) {
+        return RegistryResult::INVALID_RECORD;
+    }
+
+    capabilities_[capability_index].latest_payload = provider.latest_payload;
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
