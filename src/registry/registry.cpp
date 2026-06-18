@@ -547,6 +547,27 @@ RegistryResult Registry::getWirelessNodeAllowlistRecordByIndex(
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::getWirelessNodeAllowlistRecordByMac(
+    const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE],
+    WirelessNodeAllowlistRecord& out_record) const {
+    if (mac_address == 0) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    for (uint8_t i = 0; i < wireless_node_allowlist_count_; ++i) {
+        const WirelessNodeAllowlistRecord& record = wireless_node_allowlist_[i];
+        if (!record.has_mac_address) {
+            continue;
+        }
+        if (wirelessMacAddressEquals(record.mac_address, mac_address)) {
+            out_record = record;
+            return RegistryResult::OK;
+        }
+    }
+
+    return RegistryResult::NOT_FOUND;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }

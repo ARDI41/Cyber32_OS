@@ -2789,6 +2789,61 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("wireless_allowlist_invalid_index_result_invalid");
     }
 
+    WirelessNodeAllowlistRecord mac_allowlist_record = allowlist_record;
+    mac_allowlist_record.node_id = 5005;
+    mac_allowlist_record.has_mac_address = true;
+    mac_allowlist_record.mac_address[0] = 0xAA;
+    mac_allowlist_record.mac_address[1] = 0xBB;
+    mac_allowlist_record.mac_address[2] = 0xCC;
+    mac_allowlist_record.mac_address[3] = 0x01;
+    mac_allowlist_record.mac_address[4] = 0x02;
+    mac_allowlist_record.mac_address[5] = 0x03;
+    if (registry_.registerWirelessNodeAllowlistRecordWithResult(mac_allowlist_record).result !=
+        RegistryResult::OK) {
+        return fail("wireless_mac_register_result_invalid");
+    }
+
+    uint8_t valid_mac[WIRELESS_MAC_ADDRESS_SIZE] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
+    if (registry_.getWirelessNodeAllowlistRecordByMac(valid_mac, allowlist_out) !=
+        RegistryResult::OK) {
+        return fail("wireless_mac_lookup_result_invalid");
+    }
+    if (allowlist_out.node_id != 5005) {
+        return fail("wireless_mac_lookup_node_invalid");
+    }
+    if (!allowlist_out.has_mac_address) {
+        return fail("wireless_mac_lookup_flag_invalid");
+    }
+
+    uint8_t missing_mac[WIRELESS_MAC_ADDRESS_SIZE] = {0xAA, 0xBB, 0xCC, 0x09, 0x08, 0x07};
+    if (registry_.getWirelessNodeAllowlistRecordByMac(missing_mac, allowlist_out) !=
+        RegistryResult::NOT_FOUND) {
+        return fail("wireless_mac_missing_result_invalid");
+    }
+    if (registry_.getWirelessNodeAllowlistRecordByMac(0, allowlist_out) !=
+        RegistryResult::INVALID_ID) {
+        return fail("wireless_mac_null_result_invalid");
+    }
+
+    WirelessNodeAllowlistRecord no_mac_allowlist_record = allowlist_record;
+    no_mac_allowlist_record.node_id = 6006;
+    no_mac_allowlist_record.has_mac_address = false;
+    no_mac_allowlist_record.mac_address[0] = 0xAA;
+    no_mac_allowlist_record.mac_address[1] = 0xBB;
+    no_mac_allowlist_record.mac_address[2] = 0xCC;
+    no_mac_allowlist_record.mac_address[3] = 0x04;
+    no_mac_allowlist_record.mac_address[4] = 0x05;
+    no_mac_allowlist_record.mac_address[5] = 0x06;
+    if (registry_.registerWirelessNodeAllowlistRecordWithResult(no_mac_allowlist_record).result !=
+        RegistryResult::OK) {
+        return fail("wireless_mac_no_mac_register_result_invalid");
+    }
+    uint8_t ignored_mac[WIRELESS_MAC_ADDRESS_SIZE] = {0xAA, 0xBB, 0xCC, 0x04, 0x05, 0x06};
+    if (registry_.getWirelessNodeAllowlistRecordByMac(ignored_mac, allowlist_out) !=
+        RegistryResult::NOT_FOUND) {
+        return fail("wireless_mac_no_mac_ignored_invalid");
+    }
+
     CapabilityProviderRecord provider;
     provider.provider_id = "provider-sim-temperature-001";
     provider.capability_id = CAP_TEMPERATURE;
@@ -3265,7 +3320,7 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (node_summary.node_count != registry_.wirelessNodeAllowlistCount()) {
         return fail("wireless_node_summary_count_invalid");
     }
-    if (node_summary.allowed_count != 2) {
+    if (node_summary.allowed_count != 4) {
         return fail("wireless_node_summary_allowed_invalid");
     }
     if (node_summary.blocked_count != 1) {

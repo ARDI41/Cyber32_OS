@@ -72,6 +72,9 @@ public:
     RegistryResult getWirelessNodeAllowlistRecordByIndex(
         uint8_t index,
         WirelessNodeAllowlistRecord& out_record) const;
+    RegistryResult getWirelessNodeAllowlistRecordByMac(
+        const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE],
+        WirelessNodeAllowlistRecord& out_record) const;
 
     uint8_t moduleCount() const;
     uint8_t deviceCount() const;
