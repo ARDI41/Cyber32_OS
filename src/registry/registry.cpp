@@ -11,6 +11,7 @@ Registry::Registry()
       command_state_count_(0),
       capability_provider_count_(0),
       active_capability_provider_count_(0),
+      wireless_node_allowlist_count_(0),
       event_bus_(0) {
 }
 
@@ -21,6 +22,7 @@ void Registry::begin() {
     command_state_count_ = 0;
     capability_provider_count_ = 0;
     active_capability_provider_count_ = 0;
+    wireless_node_allowlist_count_ = 0;
     event_bus_ = 0;
 }
 
@@ -492,6 +494,59 @@ RegistryResult Registry::updateProviderHealth(uint32_t now_ms) {
     return RegistryResult::OK;
 }
 
+RegistryWriteResult Registry::registerWirelessNodeAllowlistRecordWithResult(
+    const WirelessNodeAllowlistRecord& record) {
+    RegistryWriteResult result = {RegistryResult::OK, 255};
+
+    if (record.node_id == 0) {
+        result.result = RegistryResult::INVALID_ID;
+        return result;
+    }
+    if (findWirelessNodeAllowlistIndex(record.node_id) != NOT_FOUND) {
+        result.result = RegistryResult::DUPLICATE_ID;
+        return result;
+    }
+    if (wireless_node_allowlist_count_ >= MAX_WIRELESS_NODE_ALLOWLIST) {
+        result.result = RegistryResult::TABLE_FULL;
+        return result;
+    }
+
+    const uint8_t assigned_index = wireless_node_allowlist_count_;
+    wireless_node_allowlist_[assigned_index] = record;
+    ++wireless_node_allowlist_count_;
+
+    result.result = RegistryResult::OK;
+    result.index = assigned_index;
+    return result;
+}
+
+RegistryResult Registry::getWirelessNodeAllowlistRecord(
+    uint32_t node_id,
+    WirelessNodeAllowlistRecord& out_record) const {
+    if (node_id == 0) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findWirelessNodeAllowlistIndex(node_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_record = wireless_node_allowlist_[index];
+    return RegistryResult::OK;
+}
+
+RegistryResult Registry::getWirelessNodeAllowlistRecordByIndex(
+    uint8_t index,
+    WirelessNodeAllowlistRecord& out_record) const {
+    if (index >= wireless_node_allowlist_count_) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_record = wireless_node_allowlist_[index];
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
@@ -510,6 +565,10 @@ uint8_t Registry::capabilityProviderCount() const {
 
 uint8_t Registry::activeProviderCount() const {
     return active_capability_provider_count_;
+}
+
+uint8_t Registry::wirelessNodeAllowlistCount() const {
+    return wireless_node_allowlist_count_;
 }
 
 bool Registry::isSameId(const char* left, const char* right) const {
@@ -618,6 +677,16 @@ int8_t Registry::findCapabilityProviderIndex(const char* provider_id) const {
 int8_t Registry::findActiveProviderIndex(const char* capability_id) const {
     for (uint8_t i = 0; i < active_capability_provider_count_; ++i) {
         if (isSameId(active_capability_providers_[i].capability_id, capability_id)) {
+            return static_cast<int8_t>(i);
+        }
+    }
+
+    return NOT_FOUND;
+}
+
+int8_t Registry::findWirelessNodeAllowlistIndex(uint32_t node_id) const {
+    for (uint8_t i = 0; i < wireless_node_allowlist_count_; ++i) {
+        if (wireless_node_allowlist_[i].node_id == node_id) {
             return static_cast<int8_t>(i);
         }
     }

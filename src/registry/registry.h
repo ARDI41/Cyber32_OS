@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "../core/event_bus/event_bus.h"
+#include "../core/types/wireless_node_allowlist_records.h"
 #include "capability_provider_record.h"
 #include "command_state_record.h"
 #include "registry_records.h"
@@ -23,6 +24,7 @@ public:
     static constexpr uint8_t MAX_COMMAND_STATES = 8;
     static constexpr uint8_t MAX_CAPABILITY_PROVIDERS = 16;
     static constexpr uint8_t MAX_ACTIVE_CAPABILITY_PROVIDERS = 16;
+    static constexpr uint8_t MAX_WIRELESS_NODE_ALLOWLIST = 16;
     static constexpr uint32_t PROVIDER_STALE_TIMEOUT_MS = 5000;
     static constexpr uint32_t PROVIDER_LOST_TIMEOUT_MS = 15000;
     static constexpr int8_t NOT_FOUND = -1;
@@ -62,12 +64,21 @@ public:
     RegistryResult updateSelectedCapabilityPayload(const char* capability_id);
     RegistryResult updateBestCapabilityPayload(const char* capability_id);
     RegistryResult updateProviderHealth(uint32_t now_ms);
+    RegistryWriteResult registerWirelessNodeAllowlistRecordWithResult(
+        const WirelessNodeAllowlistRecord& record);
+    RegistryResult getWirelessNodeAllowlistRecord(
+        uint32_t node_id,
+        WirelessNodeAllowlistRecord& out_record) const;
+    RegistryResult getWirelessNodeAllowlistRecordByIndex(
+        uint8_t index,
+        WirelessNodeAllowlistRecord& out_record) const;
 
     uint8_t moduleCount() const;
     uint8_t deviceCount() const;
     uint8_t capabilityCount() const;
     uint8_t capabilityProviderCount() const;
     uint8_t activeProviderCount() const;
+    uint8_t wirelessNodeAllowlistCount() const;
 
 private:
     ModuleRecord modules_[MAX_MODULES];
@@ -76,12 +87,14 @@ private:
     CommandStateRecord command_states_[MAX_COMMAND_STATES];
     CapabilityProviderRecord capability_providers_[MAX_CAPABILITY_PROVIDERS];
     ActiveCapabilityProvider active_capability_providers_[MAX_ACTIVE_CAPABILITY_PROVIDERS];
+    WirelessNodeAllowlistRecord wireless_node_allowlist_[MAX_WIRELESS_NODE_ALLOWLIST];
     uint8_t module_count_;
     uint8_t device_count_;
     uint8_t capability_count_;
     uint8_t command_state_count_;
     uint8_t capability_provider_count_;
     uint8_t active_capability_provider_count_;
+    uint8_t wireless_node_allowlist_count_;
     EventBus* event_bus_;
 
     bool isTextPresent(const char* value) const;
@@ -96,6 +109,7 @@ private:
     int8_t findCommandStateIndex(const char* capability_id) const;
     int8_t findCapabilityProviderIndex(const char* provider_id) const;
     int8_t findActiveProviderIndex(const char* capability_id) const;
+    int8_t findWirelessNodeAllowlistIndex(uint32_t node_id) const;
     void publishCapabilityEvent(const char* event_id, const char* capability_id, uint32_t timestamp_ms);
 };
 

@@ -2719,10 +2719,74 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (registry_.capabilityProviderCount() != 0) {
         return fail("provider_count_initial_invalid");
     }
+    if (registry_.wirelessNodeAllowlistCount() != 0) {
+        return fail("wireless_allowlist_count_initial_invalid");
+    }
 
     CapabilityPayload temperature_payload;
     if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
         return fail("provider_temperature_payload_missing");
+    }
+
+    WirelessNodeAllowlistRecord allowlist_record;
+    allowlist_record.node_id = 1001;
+    allowlist_record.allow_state = WirelessNodeAllowState::ALLOWED;
+    allowlist_record.trust_state = WirelessTrustState::TRUSTED;
+    allowlist_record.added_at_ms = now_ms;
+    allowlist_record.last_seen_ms = now_ms;
+
+    RegistryWriteResult allowlist_result =
+        registry_.registerWirelessNodeAllowlistRecordWithResult(allowlist_record);
+    if (allowlist_result.result != RegistryResult::OK) {
+        return fail("wireless_allowlist_register_result_invalid");
+    }
+    if (allowlist_result.index != 0) {
+        return fail("wireless_allowlist_register_index_invalid");
+    }
+    if (registry_.wirelessNodeAllowlistCount() != 1) {
+        return fail("wireless_allowlist_count_after_register_invalid");
+    }
+
+    WirelessNodeAllowlistRecord allowlist_out;
+    if (registry_.getWirelessNodeAllowlistRecord(1001, allowlist_out) != RegistryResult::OK) {
+        return fail("wireless_allowlist_get_result_invalid");
+    }
+    if (allowlist_out.node_id != 1001) {
+        return fail("wireless_allowlist_get_node_invalid");
+    }
+    if (allowlist_out.allow_state != WirelessNodeAllowState::ALLOWED) {
+        return fail("wireless_allowlist_get_state_invalid");
+    }
+    if (allowlist_out.trust_state != WirelessTrustState::TRUSTED) {
+        return fail("wireless_allowlist_get_trust_invalid");
+    }
+    if (registry_.getWirelessNodeAllowlistRecordByIndex(0, allowlist_out) != RegistryResult::OK) {
+        return fail("wireless_allowlist_get_index_result_invalid");
+    }
+    if (allowlist_out.node_id != 1001) {
+        return fail("wireless_allowlist_get_index_node_invalid");
+    }
+    if (registry_.registerWirelessNodeAllowlistRecordWithResult(allowlist_record).result !=
+        RegistryResult::DUPLICATE_ID) {
+        return fail("wireless_allowlist_duplicate_result_invalid");
+    }
+    if (registry_.wirelessNodeAllowlistCount() != 1) {
+        return fail("wireless_allowlist_count_after_duplicate_invalid");
+    }
+    if (registry_.getWirelessNodeAllowlistRecord(9999, allowlist_out) != RegistryResult::NOT_FOUND) {
+        return fail("wireless_allowlist_missing_result_invalid");
+    }
+    WirelessNodeAllowlistRecord invalid_allowlist_record = allowlist_record;
+    invalid_allowlist_record.node_id = 0;
+    if (registry_.registerWirelessNodeAllowlistRecordWithResult(invalid_allowlist_record).result !=
+        RegistryResult::INVALID_ID) {
+        return fail("wireless_allowlist_invalid_register_result_invalid");
+    }
+    if (registry_.getWirelessNodeAllowlistRecord(0, allowlist_out) != RegistryResult::INVALID_ID) {
+        return fail("wireless_allowlist_invalid_get_result_invalid");
+    }
+    if (registry_.getWirelessNodeAllowlistRecordByIndex(1, allowlist_out) != RegistryResult::NOT_FOUND) {
+        return fail("wireless_allowlist_invalid_index_result_invalid");
     }
 
     CapabilityProviderRecord provider;
