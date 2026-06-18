@@ -303,6 +303,85 @@ bool Cyber32Api::getProviderSummary(ApiProviderSummary& out_response) {
     return true;
 }
 
+bool Cyber32Api::getWirelessNodeDiagnostic(
+    uint32_t node_id,
+    ApiWirelessNodeDiagnostic& out_response) {
+    if (node_id == 0) {
+        fillUnavailableWirelessNodeDiagnostic(out_response, RegistryResult::INVALID_ID, node_id);
+        return false;
+    }
+    if (registry_ == 0) {
+        fillUnavailableWirelessNodeDiagnostic(out_response, RegistryResult::NOT_ATTACHED, node_id);
+        return false;
+    }
+
+    WirelessNodeAllowlistRecord record;
+    const RegistryResult result = registry_->getWirelessNodeAllowlistRecord(node_id, record);
+    if (result != RegistryResult::OK) {
+        fillUnavailableWirelessNodeDiagnostic(out_response, result, node_id);
+        return false;
+    }
+
+    fillWirelessNodeDiagnosticFromRecord(record, out_response);
+    return true;
+}
+
+bool Cyber32Api::getWirelessNodeDiagnosticByIndex(
+    uint8_t index,
+    ApiWirelessNodeDiagnostic& out_response) {
+    if (registry_ == 0) {
+        fillUnavailableWirelessNodeDiagnostic(out_response, RegistryResult::NOT_ATTACHED, 0);
+        return false;
+    }
+
+    WirelessNodeAllowlistRecord record;
+    const RegistryResult result = registry_->getWirelessNodeAllowlistRecordByIndex(index, record);
+    if (result != RegistryResult::OK) {
+        fillUnavailableWirelessNodeDiagnostic(out_response, result, 0);
+        return false;
+    }
+
+    fillWirelessNodeDiagnosticFromRecord(record, out_response);
+    return true;
+}
+
+bool Cyber32Api::getWirelessNodeSummary(ApiWirelessNodeSummary& out_response) {
+    if (registry_ == 0) {
+        fillUnavailableWirelessNodeSummary(out_response, RegistryResult::NOT_ATTACHED);
+        return false;
+    }
+
+    uint8_t allowed_count = 0;
+    uint8_t blocked_count = 0;
+    uint8_t unknown_count = 0;
+    const uint8_t node_count = registry_->wirelessNodeAllowlistCount();
+
+    for (uint8_t i = 0; i < node_count; ++i) {
+        WirelessNodeAllowlistRecord record;
+        if (registry_->getWirelessNodeAllowlistRecordByIndex(i, record) != RegistryResult::OK) {
+            fillUnavailableWirelessNodeSummary(out_response, RegistryResult::INTERNAL_ERROR);
+            return false;
+        }
+
+        if (record.allow_state == WirelessNodeAllowState::ALLOWED) {
+            ++allowed_count;
+        } else if (record.allow_state == WirelessNodeAllowState::BLOCKED) {
+            ++blocked_count;
+        } else {
+            ++unknown_count;
+        }
+    }
+
+    out_response.ok = true;
+    out_response.registry_result = RegistryResult::OK;
+    out_response.node_count = node_count;
+    out_response.allowed_count = allowed_count;
+    out_response.blocked_count = blocked_count;
+    out_response.unknown_count = unknown_count;
+    out_response.error_code = "none";
+    return true;
+}
+
 bool Cyber32Api::commandServoPosition(
     uint32_t now_ms,
     const ApiServoCommandRequest& request,
@@ -594,6 +673,65 @@ void Cyber32Api::fillUnavailableProviderSummary(
     out_response.registry_result = registry_result;
     out_response.provider_count = 0;
     out_response.active_provider_count = 0;
+    out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
+}
+
+void Cyber32Api::fillWirelessNodeDiagnosticFromRecord(
+    const WirelessNodeAllowlistRecord& record,
+    ApiWirelessNodeDiagnostic& out_response) const {
+    out_response.ok = true;
+    out_response.registry_result = RegistryResult::OK;
+    out_response.node_id = record.node_id;
+    out_response.allow_state = record.allow_state;
+    out_response.trust_state = record.trust_state;
+    out_response.last_seen_ms = record.last_seen_ms;
+    out_response.last_sequence_id = 0;
+    out_response.battery_present = false;
+    out_response.battery_level_percent = 0.0F;
+    out_response.battery_voltage = 0.0F;
+    out_response.signal_quality_percent = 0;
+    out_response.checksum_reject_count = 0;
+    out_response.duplicate_sequence_reject_count = 0;
+    out_response.not_allowed_reject_count = 0;
+    out_response.blocked_reject_count = 0;
+    out_response.untrusted_reject_count = 0;
+    out_response.invalid_packet_reject_count = 0;
+    out_response.error_code = "none";
+}
+
+void Cyber32Api::fillUnavailableWirelessNodeDiagnostic(
+    ApiWirelessNodeDiagnostic& out_response,
+    RegistryResult registry_result,
+    uint32_t node_id) const {
+    out_response.ok = false;
+    out_response.registry_result = registry_result;
+    out_response.node_id = node_id;
+    out_response.allow_state = WirelessNodeAllowState::UNKNOWN;
+    out_response.trust_state = WirelessTrustState::UNKNOWN;
+    out_response.last_seen_ms = 0;
+    out_response.last_sequence_id = 0;
+    out_response.battery_present = false;
+    out_response.battery_level_percent = 0.0F;
+    out_response.battery_voltage = 0.0F;
+    out_response.signal_quality_percent = 0;
+    out_response.checksum_reject_count = 0;
+    out_response.duplicate_sequence_reject_count = 0;
+    out_response.not_allowed_reject_count = 0;
+    out_response.blocked_reject_count = 0;
+    out_response.untrusted_reject_count = 0;
+    out_response.invalid_packet_reject_count = 0;
+    out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
+}
+
+void Cyber32Api::fillUnavailableWirelessNodeSummary(
+    ApiWirelessNodeSummary& out_response,
+    RegistryResult registry_result) const {
+    out_response.ok = false;
+    out_response.registry_result = registry_result;
+    out_response.node_count = 0;
+    out_response.allowed_count = 0;
+    out_response.blocked_count = 0;
+    out_response.unknown_count = 0;
     out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
 }
 

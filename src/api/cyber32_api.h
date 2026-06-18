@@ -34,6 +34,13 @@ public:
         const char* capability_id,
         ApiProviderDiagnostic& out_response);
     bool getProviderSummary(ApiProviderSummary& out_response);
+    bool getWirelessNodeDiagnostic(
+        uint32_t node_id,
+        ApiWirelessNodeDiagnostic& out_response);
+    bool getWirelessNodeDiagnosticByIndex(
+        uint8_t index,
+        ApiWirelessNodeDiagnostic& out_response);
+    bool getWirelessNodeSummary(ApiWirelessNodeSummary& out_response);
     bool commandServoPosition(
         uint32_t now_ms,
         const ApiServoCommandRequest& request,
@@ -80,6 +87,16 @@ private:
         const char* capability_id) const;
     void fillUnavailableProviderSummary(
         ApiProviderSummary& out_response,
+        RegistryResult registry_result) const;
+    void fillWirelessNodeDiagnosticFromRecord(
+        const WirelessNodeAllowlistRecord& record,
+        ApiWirelessNodeDiagnostic& out_response) const;
+    void fillUnavailableWirelessNodeDiagnostic(
+        ApiWirelessNodeDiagnostic& out_response,
+        RegistryResult registry_result,
+        uint32_t node_id) const;
+    void fillUnavailableWirelessNodeSummary(
+        ApiWirelessNodeSummary& out_response,
         RegistryResult registry_result) const;
 };
 

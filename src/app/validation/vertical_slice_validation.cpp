@@ -3216,6 +3216,111 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     if (!validateTemperaturePayload(temperature_payload)) {
         return false;
     }
+
+    ApiCapabilityState wireless_node_diag_temperature_before;
+    if (!api_.getTemperatureState(wireless_node_diag_temperature_before)) {
+        return fail("wireless_node_diag_temperature_before_missing");
+    }
+
+    ApiWirelessNodeDiagnostic node_diagnostic;
+    if (!api_.getWirelessNodeDiagnostic(1001, node_diagnostic)) {
+        return fail("wireless_node_diag_get_failed");
+    }
+    if (!node_diagnostic.ok) {
+        return fail("wireless_node_diag_not_ok");
+    }
+    if (node_diagnostic.registry_result != RegistryResult::OK) {
+        return fail("wireless_node_diag_result_invalid");
+    }
+    if (node_diagnostic.node_id != 1001) {
+        return fail("wireless_node_diag_node_invalid");
+    }
+    if (node_diagnostic.allow_state != WirelessNodeAllowState::ALLOWED) {
+        return fail("wireless_node_diag_allow_invalid");
+    }
+    if (node_diagnostic.trust_state != WirelessTrustState::TRUSTED) {
+        return fail("wireless_node_diag_trust_invalid");
+    }
+
+    if (!api_.getWirelessNodeDiagnosticByIndex(0, node_diagnostic)) {
+        return fail("wireless_node_diag_index_get_failed");
+    }
+    if (!node_diagnostic.ok) {
+        return fail("wireless_node_diag_index_not_ok");
+    }
+    if (node_diagnostic.node_id != 1001) {
+        return fail("wireless_node_diag_index_node_invalid");
+    }
+
+    ApiWirelessNodeSummary node_summary;
+    if (!api_.getWirelessNodeSummary(node_summary)) {
+        return fail("wireless_node_summary_get_failed");
+    }
+    if (!node_summary.ok) {
+        return fail("wireless_node_summary_not_ok");
+    }
+    if (node_summary.registry_result != RegistryResult::OK) {
+        return fail("wireless_node_summary_result_invalid");
+    }
+    if (node_summary.node_count != registry_.wirelessNodeAllowlistCount()) {
+        return fail("wireless_node_summary_count_invalid");
+    }
+    if (node_summary.allowed_count != 2) {
+        return fail("wireless_node_summary_allowed_invalid");
+    }
+    if (node_summary.blocked_count != 1) {
+        return fail("wireless_node_summary_blocked_invalid");
+    }
+    if (node_summary.unknown_count != 0) {
+        return fail("wireless_node_summary_unknown_invalid");
+    }
+
+    if (api_.getWirelessNodeDiagnostic(9999, node_diagnostic)) {
+        return fail("wireless_node_diag_missing_succeeded");
+    }
+    if (node_diagnostic.registry_result != RegistryResult::NOT_FOUND) {
+        return fail("wireless_node_diag_missing_result_invalid");
+    }
+    if (api_.getWirelessNodeDiagnostic(0, node_diagnostic)) {
+        return fail("wireless_node_diag_invalid_succeeded");
+    }
+    if (node_diagnostic.registry_result != RegistryResult::INVALID_ID) {
+        return fail("wireless_node_diag_invalid_result_invalid");
+    }
+    if (api_.getWirelessNodeDiagnosticByIndex(99, node_diagnostic)) {
+        return fail("wireless_node_diag_index_missing_succeeded");
+    }
+    if (node_diagnostic.registry_result != RegistryResult::NOT_FOUND) {
+        return fail("wireless_node_diag_index_missing_result_invalid");
+    }
+
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_node_diag_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 34.0F) {
+        return fail("wireless_node_diag_provider_changed");
+    }
+
+    ApiCapabilityState wireless_node_diag_temperature_after;
+    if (!api_.getTemperatureState(wireless_node_diag_temperature_after)) {
+        return fail("wireless_node_diag_temperature_after_missing");
+    }
+    if (wireless_node_diag_temperature_after.payload.value_float !=
+        wireless_node_diag_temperature_before.payload.value_float) {
+        return fail("wireless_node_diag_temperature_changed");
+    }
+
+    ActiveCapabilityProvider wireless_node_diag_active_provider;
+    if (registry_.getActiveProvider(CAP_TEMPERATURE, wireless_node_diag_active_provider) !=
+        RegistryResult::OK) {
+        return fail("wireless_node_diag_active_get_failed");
+    }
+    if (!isSameText(wireless_node_diag_active_provider.provider_id, "provider-sim-temperature-001")) {
+        return fail("wireless_node_diag_active_changed");
+    }
+
     wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
     header.node_id = 1001;
 
