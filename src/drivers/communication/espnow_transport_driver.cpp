@@ -1,5 +1,8 @@
 #include "espnow_transport_driver.h"
 
+#include <WiFi.h>
+#include <esp_now.h>
+
 namespace Cyber32 {
 
 EspNowTransportDriver::EspNowTransportDriver()
@@ -13,9 +16,18 @@ EspNowTransportDriver::EspNowTransportDriver()
 }
 
 bool EspNowTransportDriver::begin() {
-    initialized_ = false;
     clearReceivedPacket();
-    return false;
+    initialized_ = false;
+
+    WiFi.mode(WIFI_STA);
+
+    if (esp_now_init() != ESP_OK) {
+        initialized_ = false;
+        return false;
+    }
+
+    initialized_ = true;
+    return true;
 }
 
 bool EspNowTransportDriver::initialized() const {
