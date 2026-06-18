@@ -64,6 +64,26 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         return false;
     }
 
+    WirelessNodeAllowlistRecord allowlist_record;
+    const RegistryResult allowlist_result =
+        registry_->getWirelessNodeAllowlistRecord(header.node_id, allowlist_record);
+    if (allowlist_result == RegistryResult::NOT_FOUND) {
+        last_error_code_ = "wireless_node_not_allowed";
+        return false;
+    }
+    if (allowlist_result != RegistryResult::OK) {
+        last_error_code_ = "wireless_node_not_allowed";
+        return false;
+    }
+    if (allowlist_record.allow_state == WirelessNodeAllowState::BLOCKED) {
+        last_error_code_ = "wireless_node_blocked";
+        return false;
+    }
+    if (allowlist_record.allow_state != WirelessNodeAllowState::ALLOWED) {
+        last_error_code_ = "wireless_node_not_allowed";
+        return false;
+    }
+
     if (!wirelessTrustAllowsPayloadUpdate(temperature_device_->trustState())) {
         last_error_code_ = "wireless_untrusted";
         return false;
