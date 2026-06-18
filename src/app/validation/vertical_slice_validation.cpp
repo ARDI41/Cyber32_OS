@@ -2,6 +2,7 @@
 
 #include "../../core/ids/capability_ids.h"
 #include "../../core/ids/error_ids.h"
+#include "../../drivers/communication/espnow_transport_driver.h"
 #include "../../logic/logic_status.h"
 
 namespace Cyber32 {
@@ -267,6 +268,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateEspNowTransportInitializationSmoke()) {
+        return false;
+    }
+
     if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
@@ -403,6 +408,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateRegistryResultState()) {
+        return false;
+    }
+
+    if (!validateEspNowTransportInitializationSmoke()) {
         return false;
     }
 
@@ -2710,6 +2719,43 @@ bool VerticalSliceValidation::validateRegistryResultState() {
     if (registry_.updateCapabilityPayloadWithResult("CAP_MISSING_TEST", missing_update_payload) !=
         RegistryResult::NOT_FOUND) {
         return fail("missing_update_result_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
+    EspNowTransportDriver espnow_driver;
+
+    if (espnow_driver.initialized()) {
+        return fail("espnow_initial_state_invalid");
+    }
+
+    const bool begin_result = espnow_driver.begin();
+    if (espnow_driver.initialized() != begin_result) {
+        return fail("espnow_initialized_result_mismatch");
+    }
+
+    if (espnow_driver.hasReceivedPacket()) {
+        return fail("espnow_pending_packet_unexpected");
+    }
+
+    WirelessPacketHeader header;
+    WirelessCapabilityValue value;
+    WirelessNodeDiagnostics diagnostics;
+    if (espnow_driver.readReceivedPacket(header, value, diagnostics)) {
+        return fail("espnow_read_without_packet_succeeded");
+    }
+
+    uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    bool has_source_mac = true;
+    if (espnow_driver.readReceivedPacket(header, value, diagnostics, source_mac, has_source_mac)) {
+        return fail("espnow_mac_read_without_packet_succeeded");
+    }
+
+    espnow_driver.clearReceivedPacket();
+    if (espnow_driver.hasReceivedPacket()) {
+        return fail("espnow_clear_left_pending_packet");
     }
 
     return true;
