@@ -25,11 +25,14 @@ public:
     bool nodeRecord(WirelessNodeRecord& out_record) const;
     void setTrustState(WirelessTrustState state);
     WirelessTrustState trustState() const;
+    bool sequenceAccepted(uint32_t sequence_id) const;
+    void markSequenceAccepted(uint32_t sequence_id);
     const char* id() const;
     const char* type() const;
 
 private:
     bool initialized_;
+    bool has_sequence_id_;
     CapabilityPayload latest_payload_;
     WirelessNodeRecord node_record_;
 

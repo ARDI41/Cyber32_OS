@@ -10,6 +10,7 @@ const char* const WirelessTemperatureDevice::DEVICE_TYPE = "wireless_sensor";
 
 WirelessTemperatureDevice::WirelessTemperatureDevice()
     : initialized_(false),
+      has_sequence_id_(false),
       latest_payload_(),
       node_record_() {
     fillUnavailablePayload(0, ERR_CAPABILITY_UNAVAILABLE);
@@ -27,6 +28,7 @@ bool WirelessTemperatureDevice::begin(uint32_t node_id) {
     node_record_.battery_voltage = 0.0F;
     node_record_.signal_quality_percent = 0;
 
+    has_sequence_id_ = false;
     initialized_ = true;
     fillUnavailablePayload(0, ERR_CAPABILITY_UNAVAILABLE);
     return true;
@@ -86,6 +88,19 @@ void WirelessTemperatureDevice::setTrustState(WirelessTrustState state) {
 
 WirelessTrustState WirelessTemperatureDevice::trustState() const {
     return node_record_.trust_state;
+}
+
+bool WirelessTemperatureDevice::sequenceAccepted(uint32_t sequence_id) const {
+    if (!has_sequence_id_) {
+        return true;
+    }
+
+    return sequence_id != node_record_.last_sequence_id;
+}
+
+void WirelessTemperatureDevice::markSequenceAccepted(uint32_t sequence_id) {
+    node_record_.last_sequence_id = sequence_id;
+    has_sequence_id_ = true;
 }
 
 const char* WirelessTemperatureDevice::id() const {

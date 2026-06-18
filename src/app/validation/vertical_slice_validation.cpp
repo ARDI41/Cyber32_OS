@@ -2954,6 +2954,73 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     }
 
     wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
+    header.sequence_id = 100;
+    value.value_float = 31.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_sequence_first_inject_failed");
+    }
+    if (!wireless_service_.processPackets(now_ms + 100)) {
+        return fail("wireless_sequence_first_process_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_sequence_first_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 31.0F) {
+        return fail("wireless_sequence_first_provider_invalid");
+    }
+
+    header.sequence_id = 100;
+    value.value_float = 32.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_sequence_duplicate_inject_failed");
+    }
+    if (wireless_service_.processPackets(now_ms + 101)) {
+        return fail("wireless_sequence_duplicate_process_succeeded");
+    }
+    if (!isSameText(wireless_service_.lastErrorCode(), "wireless_duplicate_sequence")) {
+        return fail("wireless_sequence_duplicate_error_invalid");
+    }
+    if (wireless_transport_driver_.hasReceivedPacket()) {
+        return fail("wireless_sequence_duplicate_packet_not_cleared");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_sequence_duplicate_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 31.0F) {
+        return fail("wireless_sequence_duplicate_provider_changed");
+    }
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, temperature_payload)) {
+        return fail("wireless_sequence_duplicate_canonical_missing");
+    }
+    if (!validateTemperaturePayload(temperature_payload)) {
+        return false;
+    }
+
+    header.sequence_id = 101;
+    value.value_float = 33.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!wireless_transport_driver_.injectReceivedCapabilityValue(header, value, diagnostics)) {
+        return fail("wireless_sequence_next_inject_failed");
+    }
+    if (!wireless_service_.processPackets(now_ms + 102)) {
+        return fail("wireless_sequence_next_process_failed");
+    }
+    if (registry_.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            wireless_out_record) != RegistryResult::OK) {
+        return fail("wireless_sequence_next_provider_get_failed");
+    }
+    if (wireless_out_record.latest_payload.value_float != 33.0F) {
+        return fail("wireless_sequence_next_provider_invalid");
+    }
+
+    wireless_temperature_device_.setTrustState(WirelessTrustState::TRUSTED);
     header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
     header.sequence_id = 20;
     value.value_float = 26.0F;

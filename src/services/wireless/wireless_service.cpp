@@ -69,6 +69,11 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         return false;
     }
 
+    if (!temperature_device_->sequenceAccepted(header.sequence_id)) {
+        last_error_code_ = "wireless_duplicate_sequence";
+        return false;
+    }
+
     if (!temperature_device_->updateFromPacket(now_ms, header, value, diagnostics)) {
         last_error_code_ = "device_update_failed";
         return false;
@@ -90,6 +95,7 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         return false;
     }
 
+    temperature_device_->markSequenceAccepted(header.sequence_id);
     last_process_result_ = true;
     last_error_code_ = "none";
     return true;
