@@ -2789,6 +2789,186 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("wireless_allowlist_invalid_index_result_invalid");
     }
 
+    {
+        WirelessPacketHeader test_header;
+        test_header.magic = WIRELESS_PACKET_MAGIC;
+        test_header.protocol_version = WIRELESS_PROTOCOL_VERSION;
+        test_header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+        test_header.flags = 0;
+        test_header.sequence_id = 700;
+        test_header.node_id = 1001;
+        test_header.payload_length = 0;
+
+        WirelessCapabilityValue test_value;
+        copyWirelessCapabilityId(test_value.capability_id, CAP_TEMPERATURE);
+        test_value.payload_type = WirelessPayloadType::FLOAT;
+        test_value.value_float = 21.5F;
+        test_value.value_int = 0;
+        copyWirelessCapabilityId(test_value.error_code, "none");
+
+        WirelessNodeDiagnostics test_diagnostics;
+        test_diagnostics.battery_present = true;
+        test_diagnostics.battery_level_percent = 80.0F;
+        test_diagnostics.battery_voltage = 3.7F;
+        test_diagnostics.signal_quality_percent = 70.0F;
+
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValue(
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_no_mac_inject_failed");
+        }
+
+        WirelessPacketHeader read_header;
+        WirelessCapabilityValue read_value;
+        WirelessNodeDiagnostics read_diagnostics;
+        if (!wireless_transport_driver_.readReceivedPacket(
+                read_header,
+                read_value,
+                read_diagnostics)) {
+            return fail("wireless_transport_no_mac_read_failed");
+        }
+        if (read_header.sequence_id != test_header.sequence_id ||
+            read_header.node_id != test_header.node_id ||
+            read_value.value_float != test_value.value_float ||
+            read_diagnostics.signal_quality_percent != test_diagnostics.signal_quality_percent) {
+            return fail("wireless_transport_no_mac_read_invalid");
+        }
+
+        test_header.sequence_id = 701;
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValue(
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_overload_no_mac_inject_failed");
+        }
+
+        uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
+        uint8_t empty_mac[WIRELESS_MAC_ADDRESS_SIZE];
+        clearWirelessMacAddress(source_mac);
+        clearWirelessMacAddress(empty_mac);
+        bool has_source_mac = true;
+        if (!wireless_transport_driver_.readReceivedPacket(
+                read_header,
+                read_value,
+                read_diagnostics,
+                source_mac,
+                has_source_mac)) {
+            return fail("wireless_transport_overload_no_mac_read_failed");
+        }
+        if (has_source_mac) {
+            return fail("wireless_transport_overload_no_mac_flag_invalid");
+        }
+        if (!wirelessMacAddressEquals(source_mac, empty_mac)) {
+            return fail("wireless_transport_overload_no_mac_not_cleared");
+        }
+
+        uint8_t expected_mac[WIRELESS_MAC_ADDRESS_SIZE] = {0xAA, 0xBB, 0xCC, 0x11, 0x22, 0x33};
+        test_header.sequence_id = 702;
+        test_value.value_float = 22.5F;
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValueWithMac(
+                expected_mac,
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_mac_inject_failed");
+        }
+        clearWirelessMacAddress(source_mac);
+        has_source_mac = false;
+        if (!wireless_transport_driver_.readReceivedPacket(
+                read_header,
+                read_value,
+                read_diagnostics,
+                source_mac,
+                has_source_mac)) {
+            return fail("wireless_transport_mac_read_failed");
+        }
+        if (!has_source_mac) {
+            return fail("wireless_transport_mac_flag_invalid");
+        }
+        if (!wirelessMacAddressEquals(source_mac, expected_mac)) {
+            return fail("wireless_transport_mac_value_invalid");
+        }
+        if (read_header.sequence_id != test_header.sequence_id ||
+            read_value.value_float != test_value.value_float) {
+            return fail("wireless_transport_mac_packet_invalid");
+        }
+
+        test_header.sequence_id = 703;
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValueWithMac(
+                expected_mac,
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_clear_mac_inject_failed");
+        }
+        wireless_transport_driver_.clearReceivedPacket();
+        test_header.sequence_id = 704;
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValue(
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_clear_no_mac_inject_failed");
+        }
+        clearWirelessMacAddress(source_mac);
+        has_source_mac = true;
+        if (!wireless_transport_driver_.readReceivedPacket(
+                read_header,
+                read_value,
+                read_diagnostics,
+                source_mac,
+                has_source_mac)) {
+            return fail("wireless_transport_clear_no_mac_read_failed");
+        }
+        if (has_source_mac || !wirelessMacAddressEquals(source_mac, empty_mac)) {
+            return fail("wireless_transport_clear_mac_not_reset");
+        }
+
+        test_header.sequence_id = 705;
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValueWithMac(
+                expected_mac,
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_begin_mac_inject_failed");
+        }
+        wireless_transport_driver_.begin();
+        test_header.sequence_id = 706;
+        test_header.checksum =
+            calculateWirelessPacketChecksum(test_header, test_value, test_diagnostics);
+        if (!wireless_transport_driver_.injectReceivedCapabilityValue(
+                test_header,
+                test_value,
+                test_diagnostics)) {
+            return fail("wireless_transport_begin_no_mac_inject_failed");
+        }
+        clearWirelessMacAddress(source_mac);
+        has_source_mac = true;
+        if (!wireless_transport_driver_.readReceivedPacket(
+                read_header,
+                read_value,
+                read_diagnostics,
+                source_mac,
+                has_source_mac)) {
+            return fail("wireless_transport_begin_no_mac_read_failed");
+        }
+        if (has_source_mac || !wirelessMacAddressEquals(source_mac, empty_mac)) {
+            return fail("wireless_transport_begin_mac_not_reset");
+        }
+    }
+
     WirelessNodeAllowlistRecord mac_allowlist_record = allowlist_record;
     mac_allowlist_record.node_id = 5005;
     mac_allowlist_record.has_mac_address = true;
