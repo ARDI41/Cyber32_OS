@@ -7,6 +7,20 @@ namespace Cyber32 {
 
 static EspNowTransportDriver* active_espnow_transport_driver = 0;
 
+static uint16_t expectedStructuredPacketSize() {
+    return static_cast<uint16_t>(
+        sizeof(WirelessPacketHeader) +
+        sizeof(WirelessCapabilityValue) +
+        sizeof(WirelessNodeDiagnostics));
+}
+
+static void copyBytesToObject(void* destination, const uint8_t* source, uint16_t length) {
+    uint8_t* destination_bytes = static_cast<uint8_t*>(destination);
+    for (uint16_t i = 0; i < length; ++i) {
+        destination_bytes[i] = source[i];
+    }
+}
+
 EspNowTransportDriver::EspNowTransportDriver()
     : initialized_(false),
       pending_received_packet_(false),
@@ -52,7 +66,7 @@ bool EspNowTransportDriver::initialized() const {
 }
 
 bool EspNowTransportDriver::hasReceivedPacket() const {
-    return initialized_ && pending_received_packet_;
+    return pending_received_packet_;
 }
 
 void EspNowTransportDriver::clearReceivedPacket() {
@@ -107,6 +121,57 @@ bool EspNowTransportDriver::readRawPayload(
     }
 
     clearRawPayloadState();
+    return true;
+}
+
+bool EspNowTransportDriver::decodePendingRawPayload() {
+    if (!pending_raw_payload_available_) {
+        return false;
+    }
+
+    if (pending_raw_length_ != expectedStructuredPacketSize()) {
+        clearRawPayloadState();
+        pending_received_packet_ = false;
+        pending_header_ = WirelessPacketHeader();
+        pending_value_ = WirelessCapabilityValue();
+        pending_diagnostics_ = WirelessNodeDiagnostics();
+        return false;
+    }
+
+    uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    const bool has_source_mac = pending_has_source_mac_;
+    for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+        source_mac[i] = pending_source_mac_[i];
+    }
+
+    uint16_t offset = 0;
+    copyBytesToObject(
+        &pending_header_,
+        &pending_raw_payload_[offset],
+        static_cast<uint16_t>(sizeof(WirelessPacketHeader)));
+    offset = static_cast<uint16_t>(offset + sizeof(WirelessPacketHeader));
+    copyBytesToObject(
+        &pending_value_,
+        &pending_raw_payload_[offset],
+        static_cast<uint16_t>(sizeof(WirelessCapabilityValue)));
+    offset = static_cast<uint16_t>(offset + sizeof(WirelessCapabilityValue));
+    copyBytesToObject(
+        &pending_diagnostics_,
+        &pending_raw_payload_[offset],
+        static_cast<uint16_t>(sizeof(WirelessNodeDiagnostics)));
+
+    clearRawPayloadState();
+
+    pending_has_source_mac_ = has_source_mac;
+    if (has_source_mac) {
+        for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+            pending_source_mac_[i] = source_mac[i];
+        }
+    } else {
+        clearWirelessMacAddress(pending_source_mac_);
+    }
+
+    pending_received_packet_ = true;
     return true;
 }
 

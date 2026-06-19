@@ -32,6 +32,7 @@ public:
         uint16_t& out_length,
         uint8_t out_source_mac[WIRELESS_MAC_ADDRESS_SIZE],
         bool& out_has_source_mac);
+    bool decodePendingRawPayload();
     // Test/simulation hook that reuses the receive callback raw-capture path.
     bool injectRawPayloadForTest(
         const uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE],
