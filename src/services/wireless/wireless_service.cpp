@@ -10,6 +10,7 @@ const char* const WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID =
 WirelessService::WirelessService()
     : registry_(0),
       transport_(0),
+      transport_adapter_(),
       temperature_device_(0),
       last_process_result_(false),
       last_error_code_("not_started") {
@@ -18,6 +19,10 @@ WirelessService::WirelessService()
 void WirelessService::begin() {
     registry_ = 0;
     transport_ = 0;
+    transport_adapter_.context = 0;
+    transport_adapter_.has_received_packet = 0;
+    transport_adapter_.read_received_packet = 0;
+    transport_adapter_.clear_received_packet = 0;
     temperature_device_ = 0;
     last_process_result_ = false;
     last_error_code_ = "none";
@@ -29,6 +34,15 @@ void WirelessService::attachRegistry(Registry* registry) {
 
 void WirelessService::attachTransportDriver(SimEspNowTransportDriver* transport) {
     transport_ = transport;
+}
+
+bool WirelessService::attachTransportAdapter(const WirelessPacketTransportAdapter& adapter) {
+    if (!wirelessPacketTransportAdapterValid(adapter)) {
+        return false;
+    }
+
+    transport_adapter_ = adapter;
+    return true;
 }
 
 void WirelessService::attachWirelessTemperatureDevice(WirelessTemperatureDevice* device) {

@@ -281,6 +281,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateWirelessServiceTransportAdapterAttachment()) {
+        return false;
+    }
+
     if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
@@ -429,6 +433,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateEspNowWirelessPacketTransportAdapter()) {
+        return false;
+    }
+
+    if (!validateWirelessServiceTransportAdapterAttachment()) {
         return false;
     }
 
@@ -3424,6 +3432,40 @@ bool VerticalSliceValidation::validateEspNowWirelessPacketTransportAdapter() {
     if (adapter.has_received_packet(adapter.context)) {
         return fail("espnow_transport_adapter_clear_failed");
     }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateWirelessServiceTransportAdapterAttachment() {
+    WirelessPacketTransportAdapter invalid_adapter;
+    invalid_adapter.context = 0;
+    invalid_adapter.has_received_packet = 0;
+    invalid_adapter.read_received_packet = 0;
+    invalid_adapter.clear_received_packet = 0;
+
+    if (wireless_service_.attachTransportAdapter(invalid_adapter)) {
+        return fail("wireless_service_invalid_adapter_attached");
+    }
+
+    SimEspNowTransportDriver adapter_driver;
+    adapter_driver.begin();
+    WirelessPacketTransportAdapter adapter =
+        makeSimEspNowTransportAdapter(&adapter_driver);
+    if (!wirelessPacketTransportAdapterValid(adapter)) {
+        return fail("wireless_service_adapter_setup_invalid");
+    }
+    if (!wireless_service_.attachTransportAdapter(adapter)) {
+        return fail("wireless_service_valid_adapter_rejected");
+    }
+
+    wireless_service_.begin();
+    if (wireless_service_.attachTransportAdapter(invalid_adapter)) {
+        return fail("wireless_service_invalid_adapter_after_begin_attached");
+    }
+
+    wireless_service_.attachRegistry(&registry_);
+    wireless_service_.attachTransportDriver(&wireless_transport_driver_);
+    wireless_service_.attachWirelessTemperatureDevice(&wireless_temperature_device_);
 
     return true;
 }
