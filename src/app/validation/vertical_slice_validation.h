@@ -209,6 +209,7 @@ private:
     bool validateRuntimeTaskState();
     bool validateRegistryResultState();
     bool validateEspNowTransportInitializationSmoke();
+    bool validateSimWirelessPacketTransportAdapter();
     bool validateCapabilityProviderStorage(uint32_t now_ms);
     void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;

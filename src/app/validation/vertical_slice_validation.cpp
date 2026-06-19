@@ -4,6 +4,7 @@
 #include "../../core/ids/error_ids.h"
 #include "../../drivers/communication/espnow_transport_driver.h"
 #include "../../logic/logic_status.h"
+#include "../../services/wireless/wireless_packet_transport.h"
 
 namespace Cyber32 {
 
@@ -272,6 +273,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateSimWirelessPacketTransportAdapter()) {
+        return false;
+    }
+
     if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
@@ -412,6 +417,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateEspNowTransportInitializationSmoke()) {
+        return false;
+    }
+
+    if (!validateSimWirelessPacketTransportAdapter()) {
         return false;
     }
 
@@ -3048,6 +3057,176 @@ bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
     }
     if (espnow_driver.hasReceivedPacket()) {
         return fail("espnow_decode_long_created_packet");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateSimWirelessPacketTransportAdapter() {
+    WirelessPacketTransportAdapter null_adapter =
+        makeSimEspNowTransportAdapter(0);
+    if (wirelessPacketTransportAdapterValid(null_adapter)) {
+        return fail("sim_transport_null_adapter_valid");
+    }
+
+    SimEspNowTransportDriver sim_driver;
+    sim_driver.begin();
+    WirelessPacketTransportAdapter adapter =
+        makeSimEspNowTransportAdapter(&sim_driver);
+    if (!wirelessPacketTransportAdapterValid(adapter)) {
+        return fail("sim_transport_adapter_invalid");
+    }
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("sim_transport_adapter_empty_has_packet");
+    }
+
+    WirelessPacketHeader header;
+    WirelessCapabilityValue value;
+    WirelessNodeDiagnostics diagnostics;
+    uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    bool has_source_mac = true;
+    if (adapter.read_received_packet(
+            adapter.context,
+            header,
+            value,
+            diagnostics,
+            source_mac,
+            has_source_mac)) {
+        return fail("sim_transport_adapter_empty_read_succeeded");
+    }
+
+    WirelessPacketHeader expected_header;
+    expected_header.magic = WIRELESS_PACKET_MAGIC;
+    expected_header.protocol_version = WIRELESS_PROTOCOL_VERSION;
+    expected_header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    expected_header.flags = 0x01;
+    expected_header.sequence_id = 11;
+    expected_header.node_id = 1001;
+    expected_header.payload_length = static_cast<uint8_t>(
+        sizeof(WirelessCapabilityValue) + sizeof(WirelessNodeDiagnostics));
+    expected_header.checksum = 0;
+
+    WirelessCapabilityValue expected_value;
+    copyWirelessCapabilityId(expected_value.capability_id, CAP_TEMPERATURE);
+    expected_value.payload_type = WirelessPayloadType::FLOAT;
+    expected_value.value_float = 21.25F;
+    expected_value.value_int = 2;
+    copyWirelessCapabilityId(expected_value.error_code, "none");
+
+    WirelessNodeDiagnostics expected_diagnostics;
+    expected_diagnostics.battery_present = true;
+    expected_diagnostics.battery_level_percent = 90.0F;
+    expected_diagnostics.battery_voltage = 4.0F;
+    expected_diagnostics.signal_quality_percent = 80.0F;
+    expected_header.checksum =
+        calculateWirelessPacketChecksum(expected_header, expected_value, expected_diagnostics);
+
+    if (!sim_driver.injectReceivedCapabilityValue(
+            expected_header,
+            expected_value,
+            expected_diagnostics)) {
+        return fail("sim_transport_adapter_no_mac_inject_failed");
+    }
+    if (!adapter.has_received_packet(adapter.context)) {
+        return fail("sim_transport_adapter_no_mac_missing");
+    }
+    clearWirelessMacAddress(source_mac);
+    has_source_mac = true;
+    if (!adapter.read_received_packet(
+            adapter.context,
+            header,
+            value,
+            diagnostics,
+            source_mac,
+            has_source_mac)) {
+        return fail("sim_transport_adapter_no_mac_read_failed");
+    }
+    if (has_source_mac) {
+        return fail("sim_transport_adapter_no_mac_flag_invalid");
+    }
+    uint8_t empty_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    clearWirelessMacAddress(empty_mac);
+    if (!wirelessMacAddressEquals(source_mac, empty_mac)) {
+        return fail("sim_transport_adapter_no_mac_not_cleared");
+    }
+    if (header.magic != expected_header.magic ||
+        header.protocol_version != expected_header.protocol_version ||
+        header.packet_type != expected_header.packet_type ||
+        header.flags != expected_header.flags ||
+        header.sequence_id != expected_header.sequence_id ||
+        header.node_id != expected_header.node_id ||
+        header.payload_length != expected_header.payload_length ||
+        header.checksum != expected_header.checksum) {
+        return fail("sim_transport_adapter_no_mac_header_invalid");
+    }
+    if (!isSameText(value.capability_id, CAP_TEMPERATURE) ||
+        value.payload_type != expected_value.payload_type ||
+        value.value_float != expected_value.value_float ||
+        value.value_int != expected_value.value_int ||
+        !isSameText(value.error_code, "none")) {
+        return fail("sim_transport_adapter_no_mac_value_invalid");
+    }
+    if (diagnostics.battery_present != expected_diagnostics.battery_present ||
+        diagnostics.battery_level_percent != expected_diagnostics.battery_level_percent ||
+        diagnostics.battery_voltage != expected_diagnostics.battery_voltage ||
+        diagnostics.signal_quality_percent != expected_diagnostics.signal_quality_percent) {
+        return fail("sim_transport_adapter_no_mac_diagnostics_invalid");
+    }
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("sim_transport_adapter_no_mac_not_cleared");
+    }
+
+    const uint8_t expected_mac[WIRELESS_MAC_ADDRESS_SIZE] = {
+        0xAA,
+        0xBB,
+        0xCC,
+        0x77,
+        0x88,
+        0x99
+    };
+    expected_header.sequence_id = 12;
+    expected_value.value_float = 22.5F;
+    expected_header.checksum =
+        calculateWirelessPacketChecksum(expected_header, expected_value, expected_diagnostics);
+    if (!sim_driver.injectReceivedCapabilityValueWithMac(
+            expected_mac,
+            expected_header,
+            expected_value,
+            expected_diagnostics)) {
+        return fail("sim_transport_adapter_mac_inject_failed");
+    }
+    clearWirelessMacAddress(source_mac);
+    has_source_mac = false;
+    if (!adapter.read_received_packet(
+            adapter.context,
+            header,
+            value,
+            diagnostics,
+            source_mac,
+            has_source_mac)) {
+        return fail("sim_transport_adapter_mac_read_failed");
+    }
+    if (!has_source_mac) {
+        return fail("sim_transport_adapter_mac_flag_invalid");
+    }
+    if (!wirelessMacAddressEquals(source_mac, expected_mac)) {
+        return fail("sim_transport_adapter_mac_invalid");
+    }
+    if (header.sequence_id != expected_header.sequence_id ||
+        value.value_float != expected_value.value_float ||
+        diagnostics.signal_quality_percent != expected_diagnostics.signal_quality_percent) {
+        return fail("sim_transport_adapter_mac_packet_invalid");
+    }
+
+    if (!sim_driver.injectReceivedCapabilityValue(
+            expected_header,
+            expected_value,
+            expected_diagnostics)) {
+        return fail("sim_transport_adapter_clear_inject_failed");
+    }
+    adapter.clear_received_packet(adapter.context);
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("sim_transport_adapter_clear_failed");
     }
 
     return true;
