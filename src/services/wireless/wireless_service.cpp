@@ -56,22 +56,44 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         last_error_code_ = "not_attached";
         return false;
     }
-    if (!transport_->initialized()) {
-        last_error_code_ = "transport_not_initialized";
-        return false;
-    }
-    if (!transport_->hasReceivedPacket()) {
-        last_error_code_ = "no_packet";
-        return false;
-    }
 
     WirelessPacketHeader header;
     WirelessCapabilityValue value;
     WirelessNodeDiagnostics diagnostics;
-    if (!transport_->readReceivedPacket(header, value, diagnostics)) {
-        last_error_code_ = "packet_read_failed";
-        return false;
+    uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    bool has_source_mac = false;
+
+    if (wirelessPacketTransportAdapterValid(transport_adapter_)) {
+        if (!transport_adapter_.has_received_packet(transport_adapter_.context)) {
+            last_error_code_ = "no_packet";
+            return false;
+        }
+        if (!transport_adapter_.read_received_packet(
+                transport_adapter_.context,
+                header,
+                value,
+                diagnostics,
+                source_mac,
+                has_source_mac)) {
+            last_error_code_ = "packet_read_failed";
+            return false;
+        }
+    } else {
+        if (!transport_->initialized()) {
+            last_error_code_ = "transport_not_initialized";
+            return false;
+        }
+        if (!transport_->hasReceivedPacket()) {
+            last_error_code_ = "no_packet";
+            return false;
+        }
+        if (!transport_->readReceivedPacket(header, value, diagnostics)) {
+            last_error_code_ = "packet_read_failed";
+            return false;
+        }
     }
+    (void)source_mac;
+    (void)has_source_mac;
 
     if (!wirelessPacketChecksumValid(header, value, diagnostics)) {
         last_error_code_ = "wireless_checksum_invalid";
@@ -174,7 +196,7 @@ const char* WirelessService::lastErrorCode() const {
 
 bool WirelessService::hasRequiredAttachments() const {
     return registry_ != 0 &&
-           transport_ != 0 &&
+           (transport_ != 0 || wirelessPacketTransportAdapterValid(transport_adapter_)) &&
            temperature_device_ != 0;
 }
 

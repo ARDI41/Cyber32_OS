@@ -285,6 +285,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateWirelessServiceProcessPacketsAdapterPath(now_ms)) {
+        return false;
+    }
+
     if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
@@ -437,6 +441,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateWirelessServiceTransportAdapterAttachment()) {
+        return false;
+    }
+
+    if (!validateWirelessServiceProcessPacketsAdapterPath(now_ms)) {
         return false;
     }
 
@@ -3466,6 +3474,218 @@ bool VerticalSliceValidation::validateWirelessServiceTransportAdapterAttachment(
     wireless_service_.attachRegistry(&registry_);
     wireless_service_.attachTransportDriver(&wireless_transport_driver_);
     wireless_service_.attachWirelessTemperatureDevice(&wireless_temperature_device_);
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateWirelessServiceProcessPacketsAdapterPath(uint32_t now_ms) {
+    Registry local_registry;
+    local_registry.begin();
+
+    WirelessNodeAllowlistRecord allowlist_record;
+    allowlist_record.node_id = 1001;
+    allowlist_record.allow_state = WirelessNodeAllowState::ALLOWED;
+    allowlist_record.trust_state = WirelessTrustState::TRUSTED;
+    allowlist_record.added_at_ms = now_ms;
+    allowlist_record.last_seen_ms = now_ms;
+    allowlist_record.has_mac_address = false;
+    clearWirelessMacAddress(allowlist_record.mac_address);
+    if (local_registry.registerWirelessNodeAllowlistRecordWithResult(allowlist_record).result !=
+        RegistryResult::OK) {
+        return fail("wireless_service_adapter_allowlist_register_failed");
+    }
+
+    CapabilityPayload stale_payload;
+    stale_payload.capability_id = CAP_TEMPERATURE;
+    stale_payload.schema_version = 1;
+    stale_payload.timestamp_ms = 0;
+    stale_payload.available = Availability::AVAILABLE;
+    stale_payload.stale = StaleState::STALE;
+    stale_payload.value_type = PayloadValueType::FLOAT;
+    stale_payload.value_float = 0.0F;
+    stale_payload.value_int = 0;
+    stale_payload.unit = "degree_celsius";
+    stale_payload.quality = "stale";
+    stale_payload.error_code = "none";
+
+    CapabilityProviderRecord provider;
+    provider.provider_id = WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID;
+    provider.capability_id = CAP_TEMPERATURE;
+    provider.owner_module_index = 0;
+    provider.owner_device_index = 0;
+    provider.provider_type = CapabilityProviderType::WIRELESS;
+    provider.status = CapabilityProviderStatus::STALE;
+    provider.priority = 20;
+    provider.last_update_ms = 0;
+    provider.latest_payload = stale_payload;
+    if (local_registry.registerCapabilityProviderWithResult(provider).result !=
+        RegistryResult::OK) {
+        return fail("wireless_service_adapter_provider_register_failed");
+    }
+
+    WirelessTemperatureDevice local_device;
+    if (!local_device.begin(1001)) {
+        return fail("wireless_service_adapter_device_begin_failed");
+    }
+    local_device.setTrustState(WirelessTrustState::TRUSTED);
+
+    SimEspNowTransportDriver adapter_driver;
+    adapter_driver.begin();
+    WirelessPacketTransportAdapter adapter =
+        makeSimEspNowTransportAdapter(&adapter_driver);
+    if (!wirelessPacketTransportAdapterValid(adapter)) {
+        return fail("wireless_service_process_adapter_invalid");
+    }
+
+    WirelessService local_service;
+    local_service.begin();
+    local_service.attachRegistry(&local_registry);
+    if (!local_service.attachTransportAdapter(adapter)) {
+        return fail("wireless_service_process_adapter_attach_failed");
+    }
+    local_service.attachWirelessTemperatureDevice(&local_device);
+
+    WirelessPacketHeader header;
+    header.magic = WIRELESS_PACKET_MAGIC;
+    header.protocol_version = WIRELESS_PROTOCOL_VERSION;
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.flags = 0;
+    header.sequence_id = 701;
+    header.node_id = 1001;
+    header.payload_length = static_cast<uint8_t>(
+        sizeof(WirelessCapabilityValue) + sizeof(WirelessNodeDiagnostics));
+    header.checksum = 0;
+
+    WirelessCapabilityValue value;
+    copyWirelessCapabilityId(value.capability_id, CAP_TEMPERATURE);
+    value.payload_type = WirelessPayloadType::FLOAT;
+    value.value_float = 26.5F;
+    value.value_int = 0;
+    copyWirelessCapabilityId(value.error_code, "none");
+
+    WirelessNodeDiagnostics diagnostics;
+    diagnostics.battery_present = true;
+    diagnostics.battery_level_percent = 84.0F;
+    diagnostics.battery_voltage = 3.7F;
+    diagnostics.signal_quality_percent = 72.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+
+    const uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE] = {
+        0xAA,
+        0xBB,
+        0xCC,
+        0x01,
+        0x02,
+        0x03
+    };
+    if (!adapter_driver.injectReceivedCapabilityValueWithMac(
+            source_mac,
+            header,
+            value,
+            diagnostics)) {
+        return fail("wireless_service_process_adapter_inject_failed");
+    }
+    if (!local_service.processPackets(now_ms)) {
+        return fail(local_service.lastErrorCode());
+    }
+    CapabilityProviderRecord provider_out;
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("wireless_service_process_adapter_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 26.5F) {
+        return fail("wireless_service_process_adapter_payload_invalid");
+    }
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("wireless_service_process_adapter_packet_not_cleared");
+    }
+
+    local_service.begin();
+    local_service.attachRegistry(&local_registry);
+    local_service.attachTransportDriver(&adapter_driver);
+    local_service.attachWirelessTemperatureDevice(&local_device);
+
+    header.sequence_id = 702;
+    value.value_float = 27.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!adapter_driver.injectReceivedCapabilityValue(
+            header,
+            value,
+            diagnostics)) {
+        return fail("wireless_service_process_fallback_inject_failed");
+    }
+    if (!local_service.processPackets(now_ms + 1)) {
+        return fail(local_service.lastErrorCode());
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("wireless_service_process_fallback_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 27.5F) {
+        return fail("wireless_service_process_fallback_payload_invalid");
+    }
+
+    header.sequence_id = 703;
+    value.value_float = 28.5F;
+    header.checksum = static_cast<uint16_t>(
+        calculateWirelessPacketChecksum(header, value, diagnostics) + 1);
+    if (!adapter_driver.injectReceivedCapabilityValue(
+            header,
+            value,
+            diagnostics)) {
+        return fail("wireless_service_process_bad_checksum_inject_failed");
+    }
+    if (local_service.processPackets(now_ms + 2)) {
+        return fail("wireless_service_process_bad_checksum_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_checksum_invalid")) {
+        return fail("wireless_service_process_bad_checksum_error_invalid");
+    }
+
+    header.sequence_id = 704;
+    header.node_id = 2002;
+    value.value_float = 29.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!adapter_driver.injectReceivedCapabilityValue(
+            header,
+            value,
+            diagnostics)) {
+        return fail("wireless_service_process_unknown_node_inject_failed");
+    }
+    if (local_service.processPackets(now_ms + 3)) {
+        return fail("wireless_service_process_unknown_node_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_node_not_allowed")) {
+        return fail("wireless_service_process_unknown_node_error_invalid");
+    }
+
+    header.sequence_id = 702;
+    header.node_id = 1001;
+    value.value_float = 30.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    if (!adapter_driver.injectReceivedCapabilityValue(
+            header,
+            value,
+            diagnostics)) {
+        return fail("wireless_service_process_duplicate_inject_failed");
+    }
+    if (local_service.processPackets(now_ms + 4)) {
+        return fail("wireless_service_process_duplicate_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_duplicate_sequence")) {
+        return fail("wireless_service_process_duplicate_error_invalid");
+    }
+
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("wireless_service_process_policy_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 27.5F) {
+        return fail("wireless_service_process_policy_changed_payload");
+    }
 
     return true;
 }
