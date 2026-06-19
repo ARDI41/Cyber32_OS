@@ -2730,10 +2730,22 @@ bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
     if (espnow_driver.initialized()) {
         return fail("espnow_initial_state_invalid");
     }
+    if (espnow_driver.callbackReceived()) {
+        return fail("espnow_callback_initial_state_invalid");
+    }
+    if (espnow_driver.lastReceivedLength() != 0) {
+        return fail("espnow_callback_initial_length_invalid");
+    }
 
     const bool begin_result = espnow_driver.begin();
     if (espnow_driver.initialized() != begin_result) {
         return fail("espnow_initialized_result_mismatch");
+    }
+    if (espnow_driver.callbackReceived()) {
+        return fail("espnow_callback_unexpected_after_begin");
+    }
+    if (espnow_driver.lastReceivedLength() != 0) {
+        return fail("espnow_callback_length_after_begin_invalid");
     }
 
     if (espnow_driver.hasReceivedPacket()) {
@@ -2756,6 +2768,12 @@ bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
     espnow_driver.clearReceivedPacket();
     if (espnow_driver.hasReceivedPacket()) {
         return fail("espnow_clear_left_pending_packet");
+    }
+    if (espnow_driver.callbackReceived()) {
+        return fail("espnow_callback_unexpected_after_clear");
+    }
+    if (espnow_driver.lastReceivedLength() != 0) {
+        return fail("espnow_callback_length_after_clear_invalid");
     }
 
     return true;

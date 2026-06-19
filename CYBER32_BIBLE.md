@@ -40,7 +40,7 @@ This Bible consolidates the current Cyber32 documentation set, including:
 - `ACTUATOR_SAFETY_POLICY.md`
 - `SAFE_MODE_ARCHITECTURE_PLAN.md`
 - `MOBILE_STUDIO_VISION.md`
-- all `MILESTONE_*` plans, audits, and roadmaps through Milestone 7
+- all `MILESTONE_*` plans, audits, and roadmaps through Milestone 8.2 Phase 1
 
 If this document appears to conflict with a more detailed phase document, the detailed phase document is the local implementation source, and this Bible should be updated to reflect it.
 
@@ -857,6 +857,37 @@ WirelessService responsibilities:
 
 WirelessService must not expose API, run Logic, or parse packets into Registry directly.
 
+### Real ESP-NOW Driver Boundary
+
+Real ESP-NOW is now present only behind the driver boundary:
+
+```text
+src/drivers/communication/espnow_transport_driver.h
+src/drivers/communication/espnow_transport_driver.cpp
+```
+
+Rules:
+
+- `WiFi.h` and `esp_now.h` must remain isolated to `espnow_transport_driver.cpp`
+- Registry must not parse ESP-NOW packets
+- Runtime must not parse ESP-NOW packets
+- Logic must not see MAC, node, or provider details
+- WirelessService remains the integration layer
+- simulated transport remains the validation baseline until real driver integration is explicitly planned
+
+Current real ESP-NOW status:
+
+- real ESP-NOW driver skeleton exists
+- clean header boundary exists
+- ESP-NOW initialization uses `WiFi.mode(WIFI_STA)` and `esp_now_init()`
+- receive callback is registered
+- callback metadata is captured only:
+  - `callback_received_`
+  - `last_received_length_`
+  - `last_source_mac_`
+- no packet parsing exists yet
+- no WirelessService integration exists yet
+
 ## API v1 Contract
 
 API is capability-first and bounded.
@@ -1045,15 +1076,54 @@ Selected provider payload plan and Registry state-copy method.
 
 Capability provider roadmap across wired, wireless, virtual, cloud, dashboard, Mobile Studio, and AI.
 
+### Milestone 7.7
+
+ESP-NOW identity and pairing plan.
+
+Implemented MAC address support in wireless allowlist records, Registry MAC lookup helper, and MAC lookup validation.
+
+### Milestone 7.8
+
+ESP-NOW transport boundary plan.
+
+Implemented simulated transport source MAC support and MAC injection/read validation.
+
+### Milestone 7.9
+
+Real ESP-NOW integration checklist.
+
+Readiness result: WARNING until real ESP-NOW driver validation, raw packet capture, decode, and hardware tests are complete.
+
+### Milestone 8.0
+
+Real ESP-NOW transport driver skeleton.
+
+Created a clean driver header boundary and isolated `WiFi.h` / `esp_now.h` to the `.cpp`. No WirelessService integration yet.
+
+### Milestone 8.1
+
+ESP-NOW driver initialization.
+
+Implemented WiFi STA mode, `esp_now_init()`, and initialization smoke validation.
+
+### Milestone 8.2
+
+Receive callback skeleton.
+
+Implemented callback bridge and metadata capture only. No packet parsing and no provider updates yet.
+
 ## Current Project Snapshot
 
 Purpose: allow future AI sessions and contributors to immediately understand the current Cyber32 project status.
 
-Current Milestone: Milestone 6.4
+Current Milestone: Milestone 8.2 ESP-NOW Receive Callback Skeleton
 
 Current Build: PASS
 
-Current Validation: PASS
+Current Validation:
+
+- PASS through Milestone 8.1
+- Milestone 8.2 Phase 1 build PASS
 
 Current Capability Slices:
 
@@ -1065,15 +1135,24 @@ Current Capability Slices:
 
 Current Provider System: FOUNDATION COMPLETE
 
-Current Wireless Status:
+Current ESP-NOW Status:
 
-- provider payload updates complete
-- selected payload integration in progress
+- real ESP-NOW driver skeleton exists
+- `WiFi.h` and `esp_now.h` are isolated to `espnow_transport_driver.cpp`
+- ESP-NOW initialization is implemented with `WiFi.mode(WIFI_STA)` and `esp_now_init()`
+- receive callback is registered
+- callback metadata is captured:
+  - `callback_received_`
+  - `last_received_length_`
+  - `last_source_mac_`
+- no packet parsing yet
+- no WirelessService integration yet
+- simulated transport remains default validation path
 
 Next Planned Step:
 
 ```text
-updateSelectedCapabilityPayload()
+Milestone 8.2 Phase 2 - ESP-NOW callback validation
 ```
 
 ## Known Remaining Gaps
@@ -1082,11 +1161,14 @@ Critical and important gaps still tracked across audits:
 
 - full production bootstrap in `src/main.cpp` is not wired
 - PlatformIO build has not been verified in this environment because `pio` is not on PATH
-- provider selected payload validation still needs the next phase
-- provider stale/lost timeout behavior is not fully implemented
-- wireless packet checksum/security is not implemented
-- provider diagnostics API is not implemented
-- real ESP-NOW is not implemented
+- ESP-NOW callback validation still pending
+- raw packet capture pending
+- packet decode layer pending
+- MAC-to-node enforcement in real receive path pending
+- WirelessService real driver integration pending
+- real wireless temperature node test pending
+- persistence for allowlist/pairing still future work
+- stronger cryptographic authentication still future work
 - real hardware drivers are not implemented
 - persistence/configuration model is incomplete
 - security minimum is still future work
@@ -1118,19 +1200,20 @@ Stop and review architecture if any of these occur:
 
 Recommended order:
 
-1. complete selected provider payload validation
-2. complete provider stale/lost handling
-3. complete wireless selected-payload flow
-4. add provider diagnostics API
-5. add production bootstrap path
-6. verify PlatformIO build
-7. add real wired sensor providers
-8. add real ESP-NOW sensor providers
-9. add persistence/configuration
-10. add security minimum
-11. expose Dashboard/Mobile Studio diagnostics through API
-12. consider real actuator hardware only after safety readiness audits
-13. consider wireless/cloud/AI actuator providers only after trusted bounded command flow exists
+1. Milestone 8.2 Phase 2 callback validation
+2. Milestone 8.3 raw packet capture
+3. Milestone 8.4 packet decode layer
+4. Milestone 8.5 real transport to WirelessService adapter
+5. Milestone 8.6 real wireless `CAP_TEMPERATURE` node
+6. Milestone 8.7 real ESP-NOW security audit
+7. add production bootstrap path
+8. verify PlatformIO build
+9. add real wired sensor providers
+10. add persistence/configuration
+11. add security minimum
+12. expose Dashboard/Mobile Studio diagnostics through API
+13. consider real actuator hardware only after safety readiness audits
+14. consider wireless/cloud/AI actuator providers only after trusted bounded command flow exists
 
 ## Final Canon
 
