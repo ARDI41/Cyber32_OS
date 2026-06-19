@@ -2736,6 +2736,12 @@ bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
     if (espnow_driver.lastReceivedLength() != 0) {
         return fail("espnow_callback_initial_length_invalid");
     }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_initial_state_invalid");
+    }
+    if (espnow_driver.rawPayloadLength() != 0) {
+        return fail("espnow_raw_initial_length_invalid");
+    }
 
     const bool begin_result = espnow_driver.begin();
     if (espnow_driver.initialized() != begin_result) {
@@ -2746,6 +2752,12 @@ bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
     }
     if (espnow_driver.lastReceivedLength() != 0) {
         return fail("espnow_callback_length_after_begin_invalid");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_unexpected_after_begin");
+    }
+    if (espnow_driver.rawPayloadLength() != 0) {
+        return fail("espnow_raw_length_after_begin_invalid");
     }
 
     if (espnow_driver.hasReceivedPacket()) {
@@ -2761,19 +2773,118 @@ bool VerticalSliceValidation::validateEspNowTransportInitializationSmoke() {
 
     uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
     bool has_source_mac = true;
+    uint8_t raw_buffer[WIRELESS_MAX_PACKET_SIZE];
+    uint16_t raw_length = 0;
     if (espnow_driver.readReceivedPacket(header, value, diagnostics, source_mac, has_source_mac)) {
         return fail("espnow_mac_read_without_packet_succeeded");
     }
-
+    if (espnow_driver.readRawPayload(raw_buffer, raw_length, source_mac, has_source_mac)) {
+        return fail("espnow_empty_raw_read_succeeded");
+    }
+    if (raw_length != 0) {
+        return fail("espnow_empty_raw_length_invalid");
+    }
     espnow_driver.clearReceivedPacket();
     if (espnow_driver.hasReceivedPacket()) {
-        return fail("espnow_clear_left_pending_packet");
+        return fail("espnow_clear_initial_left_pending_packet");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_clear_initial_left_raw_payload");
+    }
+    if (espnow_driver.rawPayloadLength() != 0) {
+        return fail("espnow_clear_initial_left_raw_length");
     }
     if (espnow_driver.callbackReceived()) {
         return fail("espnow_callback_unexpected_after_clear");
     }
     if (espnow_driver.lastReceivedLength() != 0) {
         return fail("espnow_callback_length_after_clear_invalid");
+    }
+
+    const uint8_t valid_source_mac[WIRELESS_MAC_ADDRESS_SIZE] = {
+        0xAA,
+        0xBB,
+        0xCC,
+        0x44,
+        0x55,
+        0x66
+    };
+    const uint8_t valid_raw_payload[5] = {1, 2, 3, 4, 5};
+    if (!espnow_driver.injectRawPayloadForTest(valid_source_mac, valid_raw_payload, 5)) {
+        return fail("espnow_raw_inject_failed");
+    }
+    if (!espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_payload_missing");
+    }
+    if (espnow_driver.rawPayloadLength() != 5) {
+        return fail("espnow_raw_payload_length_invalid");
+    }
+    raw_length = 0;
+    clearWirelessMacAddress(source_mac);
+    has_source_mac = false;
+    if (!espnow_driver.readRawPayload(raw_buffer, raw_length, source_mac, has_source_mac)) {
+        return fail("espnow_raw_read_failed");
+    }
+    if (raw_length != 5) {
+        return fail("espnow_raw_read_length_invalid");
+    }
+    for (uint8_t i = 0; i < 5; ++i) {
+        if (raw_buffer[i] != valid_raw_payload[i]) {
+            return fail("espnow_raw_read_byte_invalid");
+        }
+    }
+    if (!has_source_mac) {
+        return fail("espnow_raw_source_mac_missing");
+    }
+    if (!wirelessMacAddressEquals(source_mac, valid_source_mac)) {
+        return fail("espnow_raw_source_mac_invalid");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_not_cleared_after_read");
+    }
+    if (espnow_driver.rawPayloadLength() != 0) {
+        return fail("espnow_raw_length_not_cleared_after_read");
+    }
+
+    if (espnow_driver.injectRawPayloadForTest(valid_source_mac, 0, 5)) {
+        return fail("espnow_raw_null_data_accepted");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_null_data_pending");
+    }
+    if (espnow_driver.injectRawPayloadForTest(valid_source_mac, valid_raw_payload, 0)) {
+        return fail("espnow_raw_zero_length_accepted");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_zero_length_pending");
+    }
+    uint8_t oversized_raw_payload[WIRELESS_MAX_PACKET_SIZE + 1];
+    for (uint16_t i = 0; i < static_cast<uint16_t>(WIRELESS_MAX_PACKET_SIZE + 1); ++i) {
+        oversized_raw_payload[i] = static_cast<uint8_t>(i);
+    }
+    if (espnow_driver.injectRawPayloadForTest(
+            valid_source_mac,
+            oversized_raw_payload,
+            static_cast<uint16_t>(WIRELESS_MAX_PACKET_SIZE + 1))) {
+        return fail("espnow_raw_oversize_accepted");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_raw_oversize_pending");
+    }
+
+    if (!espnow_driver.injectRawPayloadForTest(valid_source_mac, valid_raw_payload, 5)) {
+        return fail("espnow_raw_clear_setup_failed");
+    }
+
+    espnow_driver.clearReceivedPacket();
+    if (espnow_driver.hasReceivedPacket()) {
+        return fail("espnow_clear_left_pending_packet");
+    }
+    if (espnow_driver.hasRawPayload()) {
+        return fail("espnow_clear_left_raw_payload");
+    }
+    if (espnow_driver.rawPayloadLength() != 0) {
+        return fail("espnow_clear_left_raw_length");
     }
 
     return true;

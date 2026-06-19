@@ -17,7 +17,10 @@ EspNowTransportDriver::EspNowTransportDriver()
       pending_has_source_mac_(false),
       callback_received_(false),
       last_received_length_(0),
-      last_source_mac_() {
+      last_source_mac_(),
+      pending_raw_payload_(),
+      pending_raw_length_(0),
+      pending_raw_payload_available_(false) {
 }
 
 bool EspNowTransportDriver::begin() {
@@ -59,6 +62,7 @@ void EspNowTransportDriver::clearReceivedPacket() {
     pending_diagnostics_ = WirelessNodeDiagnostics();
     clearWirelessMacAddress(pending_source_mac_);
     pending_has_source_mac_ = false;
+    clearRawPayloadState();
 }
 
 bool EspNowTransportDriver::callbackReceived() const {
@@ -69,17 +73,60 @@ uint16_t EspNowTransportDriver::lastReceivedLength() const {
     return last_received_length_;
 }
 
+bool EspNowTransportDriver::hasRawPayload() const {
+    return pending_raw_payload_available_;
+}
+
+uint16_t EspNowTransportDriver::rawPayloadLength() const {
+    return pending_raw_length_;
+}
+
+bool EspNowTransportDriver::readRawPayload(
+    uint8_t out_buffer[WIRELESS_MAX_PACKET_SIZE],
+    uint16_t& out_length,
+    uint8_t out_source_mac[WIRELESS_MAC_ADDRESS_SIZE],
+    bool& out_has_source_mac) {
+    if (!pending_raw_payload_available_ || out_buffer == 0) {
+        return false;
+    }
+
+    for (uint16_t i = 0; i < pending_raw_length_; ++i) {
+        out_buffer[i] = pending_raw_payload_[i];
+    }
+    out_length = pending_raw_length_;
+
+    out_has_source_mac = pending_has_source_mac_;
+    if (out_source_mac != 0) {
+        if (pending_has_source_mac_) {
+            for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+                out_source_mac[i] = pending_source_mac_[i];
+            }
+        } else {
+            clearWirelessMacAddress(out_source_mac);
+        }
+    }
+
+    clearRawPayloadState();
+    return true;
+}
+
+bool EspNowTransportDriver::injectRawPayloadForTest(
+    const uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE],
+    const uint8_t* data,
+    uint16_t length) {
+    recordReceiveCallback(source_mac, data, static_cast<int>(length));
+    return pending_raw_payload_available_;
+}
+
 void EspNowTransportDriver::receiveCallback(
     const uint8_t* source_mac,
     const uint8_t* data,
     int data_len) {
-    (void)data;
-
     if (active_espnow_transport_driver == 0) {
         return;
     }
 
-    active_espnow_transport_driver->recordReceiveCallback(source_mac, data_len);
+    active_espnow_transport_driver->recordReceiveCallback(source_mac, data, data_len);
 }
 
 void EspNowTransportDriver::clearCallbackState() {
@@ -88,7 +135,20 @@ void EspNowTransportDriver::clearCallbackState() {
     clearWirelessMacAddress(last_source_mac_);
 }
 
-void EspNowTransportDriver::recordReceiveCallback(const uint8_t* source_mac, int data_len) {
+void EspNowTransportDriver::clearRawPayloadState() {
+    pending_raw_length_ = 0;
+    pending_raw_payload_available_ = false;
+    clearWirelessMacAddress(pending_source_mac_);
+    pending_has_source_mac_ = false;
+    for (uint16_t i = 0; i < WIRELESS_MAX_PACKET_SIZE; ++i) {
+        pending_raw_payload_[i] = 0;
+    }
+}
+
+void EspNowTransportDriver::recordReceiveCallback(
+    const uint8_t* source_mac,
+    const uint8_t* data,
+    int data_len) {
     callback_received_ = true;
     if (data_len <= 0) {
         last_received_length_ = 0;
@@ -100,12 +160,33 @@ void EspNowTransportDriver::recordReceiveCallback(const uint8_t* source_mac, int
 
     if (source_mac == 0) {
         clearWirelessMacAddress(last_source_mac_);
+    } else {
+        for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+            last_source_mac_[i] = source_mac[i];
+        }
+    }
+
+    if (data == 0 || data_len <= 0 || data_len > WIRELESS_MAX_PACKET_SIZE) {
+        clearRawPayloadState();
+        return;
+    }
+
+    pending_raw_length_ = static_cast<uint16_t>(data_len);
+    for (uint16_t i = 0; i < pending_raw_length_; ++i) {
+        pending_raw_payload_[i] = data[i];
+    }
+    pending_raw_payload_available_ = true;
+
+    if (source_mac == 0) {
+        clearWirelessMacAddress(pending_source_mac_);
+        pending_has_source_mac_ = false;
         return;
     }
 
     for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
-        last_source_mac_[i] = source_mac[i];
+        pending_source_mac_[i] = source_mac[i];
     }
+    pending_has_source_mac_ = true;
 }
 
 bool EspNowTransportDriver::readReceivedPacket(
