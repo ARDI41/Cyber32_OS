@@ -277,6 +277,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateEspNowWirelessPacketTransportAdapter()) {
+        return false;
+    }
+
     if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
@@ -421,6 +425,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateSimWirelessPacketTransportAdapter()) {
+        return false;
+    }
+
+    if (!validateEspNowWirelessPacketTransportAdapter()) {
         return false;
     }
 
@@ -3227,6 +3235,194 @@ bool VerticalSliceValidation::validateSimWirelessPacketTransportAdapter() {
     adapter.clear_received_packet(adapter.context);
     if (adapter.has_received_packet(adapter.context)) {
         return fail("sim_transport_adapter_clear_failed");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateEspNowWirelessPacketTransportAdapter() {
+    WirelessPacketTransportAdapter null_adapter =
+        makeEspNowTransportAdapter(0);
+    if (wirelessPacketTransportAdapterValid(null_adapter)) {
+        return fail("espnow_transport_null_adapter_valid");
+    }
+
+    EspNowTransportDriver espnow_driver;
+    WirelessPacketTransportAdapter adapter =
+        makeEspNowTransportAdapter(&espnow_driver);
+    if (!wirelessPacketTransportAdapterValid(adapter)) {
+        return fail("espnow_transport_adapter_invalid");
+    }
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("espnow_transport_adapter_empty_has_packet");
+    }
+
+    WirelessPacketHeader header;
+    WirelessCapabilityValue value;
+    WirelessNodeDiagnostics diagnostics;
+    uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    bool has_source_mac = true;
+    if (adapter.read_received_packet(
+            adapter.context,
+            header,
+            value,
+            diagnostics,
+            source_mac,
+            has_source_mac)) {
+        return fail("espnow_transport_adapter_empty_read_succeeded");
+    }
+
+    enum {
+        EXPECTED_STRUCTURED_PACKET_SIZE =
+            sizeof(WirelessPacketHeader) +
+            sizeof(WirelessCapabilityValue) +
+            sizeof(WirelessNodeDiagnostics)
+    };
+    if (EXPECTED_STRUCTURED_PACKET_SIZE > WIRELESS_MAX_PACKET_SIZE) {
+        return fail("espnow_transport_adapter_packet_size_invalid");
+    }
+
+    WirelessPacketHeader expected_header;
+    expected_header.magic = WIRELESS_PACKET_MAGIC;
+    expected_header.protocol_version = WIRELESS_PROTOCOL_VERSION;
+    expected_header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    expected_header.flags = 0x03;
+    expected_header.sequence_id = 33;
+    expected_header.node_id = 1001;
+    expected_header.payload_length = static_cast<uint8_t>(
+        sizeof(WirelessCapabilityValue) + sizeof(WirelessNodeDiagnostics));
+    expected_header.checksum = 0;
+
+    WirelessCapabilityValue expected_value;
+    copyWirelessCapabilityId(expected_value.capability_id, CAP_TEMPERATURE);
+    expected_value.payload_type = WirelessPayloadType::FLOAT;
+    expected_value.value_float = 23.75F;
+    expected_value.value_int = 4;
+    copyWirelessCapabilityId(expected_value.error_code, "none");
+
+    WirelessNodeDiagnostics expected_diagnostics;
+    expected_diagnostics.battery_present = true;
+    expected_diagnostics.battery_level_percent = 86.0F;
+    expected_diagnostics.battery_voltage = 3.8F;
+    expected_diagnostics.signal_quality_percent = 76.0F;
+    expected_header.checksum =
+        calculateWirelessPacketChecksum(expected_header, expected_value, expected_diagnostics);
+
+    uint8_t raw_payload[EXPECTED_STRUCTURED_PACKET_SIZE];
+    uint16_t raw_offset = 0;
+    const uint8_t* header_bytes =
+        reinterpret_cast<const uint8_t*>(&expected_header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    const uint8_t* value_bytes =
+        reinterpret_cast<const uint8_t*>(&expected_value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    const uint8_t* diagnostics_bytes =
+        reinterpret_cast<const uint8_t*>(&expected_diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+
+    const uint8_t expected_mac[WIRELESS_MAC_ADDRESS_SIZE] = {
+        0xAA,
+        0xBB,
+        0xCC,
+        0x10,
+        0x20,
+        0x30
+    };
+    if (!espnow_driver.injectRawPayloadForTest(
+            expected_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_transport_adapter_raw_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_transport_adapter_decode_failed");
+    }
+    if (!adapter.has_received_packet(adapter.context)) {
+        return fail("espnow_transport_adapter_packet_missing");
+    }
+
+    clearWirelessMacAddress(source_mac);
+    has_source_mac = false;
+    if (!adapter.read_received_packet(
+            adapter.context,
+            header,
+            value,
+            diagnostics,
+            source_mac,
+            has_source_mac)) {
+        return fail("espnow_transport_adapter_read_failed");
+    }
+    if (header.magic != expected_header.magic ||
+        header.protocol_version != expected_header.protocol_version ||
+        header.packet_type != expected_header.packet_type ||
+        header.flags != expected_header.flags ||
+        header.sequence_id != expected_header.sequence_id ||
+        header.node_id != expected_header.node_id ||
+        header.payload_length != expected_header.payload_length ||
+        header.checksum != expected_header.checksum) {
+        return fail("espnow_transport_adapter_header_invalid");
+    }
+    if (!isSameText(value.capability_id, CAP_TEMPERATURE) ||
+        value.payload_type != expected_value.payload_type ||
+        value.value_float != expected_value.value_float ||
+        value.value_int != expected_value.value_int ||
+        !isSameText(value.error_code, "none")) {
+        return fail("espnow_transport_adapter_value_invalid");
+    }
+    if (diagnostics.battery_present != expected_diagnostics.battery_present ||
+        diagnostics.battery_level_percent != expected_diagnostics.battery_level_percent ||
+        diagnostics.battery_voltage != expected_diagnostics.battery_voltage ||
+        diagnostics.signal_quality_percent != expected_diagnostics.signal_quality_percent) {
+        return fail("espnow_transport_adapter_diagnostics_invalid");
+    }
+    if (!has_source_mac) {
+        return fail("espnow_transport_adapter_mac_missing");
+    }
+    if (!wirelessMacAddressEquals(source_mac, expected_mac)) {
+        return fail("espnow_transport_adapter_mac_invalid");
+    }
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("espnow_transport_adapter_not_cleared_after_read");
+    }
+
+    expected_header.sequence_id = 34;
+    expected_header.checksum =
+        calculateWirelessPacketChecksum(expected_header, expected_value, expected_diagnostics);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&expected_header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            expected_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_transport_adapter_clear_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_transport_adapter_clear_decode_failed");
+    }
+    adapter.clear_received_packet(adapter.context);
+    if (adapter.has_received_packet(adapter.context)) {
+        return fail("espnow_transport_adapter_clear_failed");
     }
 
     return true;
