@@ -3496,8 +3496,13 @@ bool VerticalSliceValidation::validateWirelessServiceProcessPacketsAdapterPath(u
     allowlist_record.trust_state = WirelessTrustState::TRUSTED;
     allowlist_record.added_at_ms = now_ms;
     allowlist_record.last_seen_ms = now_ms;
-    allowlist_record.has_mac_address = false;
-    clearWirelessMacAddress(allowlist_record.mac_address);
+    allowlist_record.has_mac_address = true;
+    allowlist_record.mac_address[0] = 0xAA;
+    allowlist_record.mac_address[1] = 0xBB;
+    allowlist_record.mac_address[2] = 0xCC;
+    allowlist_record.mac_address[3] = 0x01;
+    allowlist_record.mac_address[4] = 0x02;
+    allowlist_record.mac_address[5] = 0x03;
     if (local_registry.registerWirelessNodeAllowlistRecordWithResult(allowlist_record).result !=
         RegistryResult::OK) {
         return fail("wireless_service_adapter_allowlist_register_failed");
@@ -3754,8 +3759,13 @@ bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t 
     allowlist_record.trust_state = WirelessTrustState::TRUSTED;
     allowlist_record.added_at_ms = now_ms;
     allowlist_record.last_seen_ms = now_ms;
-    allowlist_record.has_mac_address = false;
-    clearWirelessMacAddress(allowlist_record.mac_address);
+    allowlist_record.has_mac_address = true;
+    allowlist_record.mac_address[0] = 0xAA;
+    allowlist_record.mac_address[1] = 0xBB;
+    allowlist_record.mac_address[2] = 0xCC;
+    allowlist_record.mac_address[3] = 0x44;
+    allowlist_record.mac_address[4] = 0x55;
+    allowlist_record.mac_address[5] = 0x66;
     if (local_registry.registerWirelessNodeAllowlistRecordWithResult(allowlist_record).result !=
         RegistryResult::OK) {
         return fail("espnow_service_path_allowlist_register_failed");
@@ -3961,7 +3971,7 @@ bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t 
     }
 
     header.sequence_id = 803;
-    header.node_id = 2002;
+    header.node_id = 1001;
     value.value_float = 33.5F;
     header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     raw_offset = 0;
@@ -3980,8 +3990,202 @@ bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t 
         raw_payload[raw_offset] = diagnostics_bytes[i];
         ++raw_offset;
     }
+    const uint8_t unknown_mac[WIRELESS_MAC_ADDRESS_SIZE] = {
+        0xAA,
+        0xBB,
+        0xCC,
+        0x77,
+        0x88,
+        0x99
+    };
     if (!espnow_driver.injectRawPayloadForTest(
-            source_mac,
+            unknown_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_unknown_mac_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_unknown_mac_decode_failed");
+    }
+    if (local_service.processPackets(now_ms + 3)) {
+        return fail("espnow_service_path_unknown_mac_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_mac_not_allowed")) {
+        return fail("espnow_service_path_unknown_mac_error_invalid");
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_unknown_mac_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_unknown_mac_changed_provider");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_unknown_mac_not_cleared");
+    }
+
+    WirelessNodeAllowlistRecord blocked_mac_record;
+    blocked_mac_record.node_id = 3003;
+    blocked_mac_record.allow_state = WirelessNodeAllowState::BLOCKED;
+    blocked_mac_record.trust_state = WirelessTrustState::BLOCKED;
+    blocked_mac_record.added_at_ms = now_ms;
+    blocked_mac_record.last_seen_ms = now_ms;
+    blocked_mac_record.has_mac_address = true;
+    blocked_mac_record.mac_address[0] = 0xAA;
+    blocked_mac_record.mac_address[1] = 0xBB;
+    blocked_mac_record.mac_address[2] = 0xCC;
+    blocked_mac_record.mac_address[3] = 0x30;
+    blocked_mac_record.mac_address[4] = 0x03;
+    blocked_mac_record.mac_address[5] = 0x03;
+    if (local_registry.registerWirelessNodeAllowlistRecordWithResult(blocked_mac_record).result !=
+        RegistryResult::OK) {
+        return fail("espnow_service_path_blocked_mac_register_failed");
+    }
+
+    header.sequence_id = 804;
+    header.node_id = 3003;
+    value.value_float = 34.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            blocked_mac_record.mac_address,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_blocked_mac_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_blocked_mac_decode_failed");
+    }
+    if (local_service.processPackets(now_ms + 4)) {
+        return fail("espnow_service_path_blocked_mac_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_node_blocked")) {
+        return fail("espnow_service_path_blocked_mac_error_invalid");
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_blocked_mac_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_blocked_mac_changed_provider");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_blocked_mac_not_cleared");
+    }
+
+    WirelessNodeAllowlistRecord mismatch_mac_record;
+    mismatch_mac_record.node_id = 5005;
+    mismatch_mac_record.allow_state = WirelessNodeAllowState::ALLOWED;
+    mismatch_mac_record.trust_state = WirelessTrustState::TRUSTED;
+    mismatch_mac_record.added_at_ms = now_ms;
+    mismatch_mac_record.last_seen_ms = now_ms;
+    mismatch_mac_record.has_mac_address = true;
+    mismatch_mac_record.mac_address[0] = 0xAA;
+    mismatch_mac_record.mac_address[1] = 0xBB;
+    mismatch_mac_record.mac_address[2] = 0xCC;
+    mismatch_mac_record.mac_address[3] = 0x50;
+    mismatch_mac_record.mac_address[4] = 0x05;
+    mismatch_mac_record.mac_address[5] = 0x05;
+    if (local_registry.registerWirelessNodeAllowlistRecordWithResult(mismatch_mac_record).result !=
+        RegistryResult::OK) {
+        return fail("espnow_service_path_mismatch_mac_register_failed");
+    }
+
+    header.sequence_id = 805;
+    header.node_id = 1001;
+    value.value_float = 35.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            mismatch_mac_record.mac_address,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_mismatch_mac_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_mismatch_mac_decode_failed");
+    }
+    if (local_service.processPackets(now_ms + 5)) {
+        return fail("espnow_service_path_mismatch_mac_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_mac_node_mismatch")) {
+        return fail("espnow_service_path_mismatch_mac_error_invalid");
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_mismatch_mac_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_mismatch_mac_changed_provider");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_mismatch_mac_not_cleared");
+    }
+
+    header.sequence_id = 803;
+    header.node_id = 2002;
+    value.value_float = 36.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            0,
             raw_payload,
             static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
         return fail("espnow_service_path_unknown_node_inject_failed");
@@ -3989,7 +4193,7 @@ bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t 
     if (!espnow_driver.decodePendingRawPayload()) {
         return fail("espnow_service_path_unknown_node_decode_failed");
     }
-    if (local_service.processPackets(now_ms + 3)) {
+    if (local_service.processPackets(now_ms + 6)) {
         return fail("espnow_service_path_unknown_node_succeeded");
     }
     if (!isSameText(local_service.lastErrorCode(), "wireless_node_not_allowed")) {
@@ -4012,7 +4216,7 @@ bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t 
 
     header.sequence_id = 801;
     header.node_id = 1001;
-    value.value_float = 34.5F;
+    value.value_float = 37.5F;
     header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
     raw_offset = 0;
     header_bytes = reinterpret_cast<const uint8_t*>(&header);
@@ -4039,7 +4243,7 @@ bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t 
     if (!espnow_driver.decodePendingRawPayload()) {
         return fail("espnow_service_path_duplicate_decode_failed");
     }
-    if (local_service.processPackets(now_ms + 4)) {
+    if (local_service.processPackets(now_ms + 7)) {
         return fail("espnow_service_path_duplicate_succeeded");
     }
     if (!isSameText(local_service.lastErrorCode(), "wireless_duplicate_sequence")) {

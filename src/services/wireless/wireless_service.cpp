@@ -92,8 +92,6 @@ bool WirelessService::processPackets(uint32_t now_ms) {
             return false;
         }
     }
-    (void)source_mac;
-    (void)has_source_mac;
 
     if (!wirelessPacketChecksumValid(header, value, diagnostics)) {
         last_error_code_ = "wireless_checksum_invalid";
@@ -101,6 +99,27 @@ bool WirelessService::processPackets(uint32_t now_ms) {
     }
 
     WirelessNodeAllowlistRecord allowlist_record;
+    if (has_source_mac) {
+        const RegistryResult mac_result =
+            registry_->getWirelessNodeAllowlistRecordByMac(source_mac, allowlist_record);
+        if (mac_result != RegistryResult::OK) {
+            last_error_code_ = "wireless_mac_not_allowed";
+            return false;
+        }
+        if (allowlist_record.allow_state == WirelessNodeAllowState::BLOCKED) {
+            last_error_code_ = "wireless_node_blocked";
+            return false;
+        }
+        if (allowlist_record.node_id != header.node_id) {
+            last_error_code_ = "wireless_mac_node_mismatch";
+            return false;
+        }
+        if (allowlist_record.allow_state != WirelessNodeAllowState::ALLOWED) {
+            last_error_code_ = "wireless_mac_not_allowed";
+            return false;
+        }
+    }
+
     const RegistryResult allowlist_result =
         registry_->getWirelessNodeAllowlistRecord(header.node_id, allowlist_record);
     if (allowlist_result == RegistryResult::NOT_FOUND) {
