@@ -85,6 +85,20 @@ public:
     RegistryResult getWirelessNodeSecurityDiagnosticByIndex(
         uint8_t index,
         WirelessNodeSecurityDiagnosticRecord& out_record) const;
+    RegistryResult updateWirelessNodeSecurityAccepted(
+        uint32_t node_id,
+        const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE],
+        bool has_mac_address,
+        uint32_t sequence_id,
+        uint32_t now_ms);
+    RegistryResult updateWirelessNodeSecurityRejected(
+        uint32_t node_id,
+        const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE],
+        bool has_mac_address,
+        uint32_t sequence_id,
+        const char* error_code,
+        WirelessSecurityRejectReason reason,
+        uint32_t now_ms);
 
     uint8_t moduleCount() const;
     uint8_t deviceCount() const;

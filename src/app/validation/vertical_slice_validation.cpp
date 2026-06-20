@@ -4452,6 +4452,223 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("wireless_security_diagnostic_saturating_increment_invalid");
     }
 
+    uint8_t updated_mac[WIRELESS_MAC_ADDRESS_SIZE] = {0xAA, 0xBB, 0xCC, 0x10, 0x20, 0x30};
+    if (registry_.updateWirelessNodeSecurityAccepted(
+            1001,
+            updated_mac,
+            true,
+            101,
+            now_ms + 1) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_accept_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_accept_get_failed");
+    }
+    if (security_out.last_seen_ms != now_ms + 1 ||
+        security_out.last_accepted_sequence_id != 101 ||
+        !isSameText(security_out.last_error_code, "none") ||
+        security_out.accepted_packet_count != 1 ||
+        !security_out.has_mac_address ||
+        !wirelessMacAddressEquals(security_out.mac_address, updated_mac)) {
+        return fail("wireless_security_diagnostic_accept_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            201,
+            "wireless_checksum_invalid",
+            WirelessSecurityRejectReason::CHECKSUM_INVALID,
+            now_ms + 2) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_checksum_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.checksum_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 201 ||
+        !isSameText(security_out.last_error_code, "wireless_checksum_invalid")) {
+        return fail("wireless_security_diagnostic_checksum_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            202,
+            "wireless_mac_not_allowed",
+            WirelessSecurityRejectReason::MAC_NOT_ALLOWED,
+            now_ms + 3) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_mac_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.mac_not_allowed_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 202 ||
+        !isSameText(security_out.last_error_code, "wireless_mac_not_allowed")) {
+        return fail("wireless_security_diagnostic_mac_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            203,
+            "wireless_mac_node_mismatch",
+            WirelessSecurityRejectReason::MAC_NODE_MISMATCH,
+            now_ms + 4) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_mismatch_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.mac_node_mismatch_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 203 ||
+        !isSameText(security_out.last_error_code, "wireless_mac_node_mismatch")) {
+        return fail("wireless_security_diagnostic_mismatch_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            204,
+            "wireless_node_blocked",
+            WirelessSecurityRejectReason::NODE_BLOCKED,
+            now_ms + 5) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_blocked_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.blocked_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 204 ||
+        !isSameText(security_out.last_error_code, "wireless_node_blocked")) {
+        return fail("wireless_security_diagnostic_blocked_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            205,
+            "wireless_node_not_allowed",
+            WirelessSecurityRejectReason::NODE_NOT_ALLOWED,
+            now_ms + 6) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_not_allowed_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.not_allowed_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 205 ||
+        !isSameText(security_out.last_error_code, "wireless_node_not_allowed")) {
+        return fail("wireless_security_diagnostic_not_allowed_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            206,
+            "wireless_untrusted",
+            WirelessSecurityRejectReason::UNTRUSTED,
+            now_ms + 7) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_untrusted_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.untrusted_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 206 ||
+        !isSameText(security_out.last_error_code, "wireless_untrusted")) {
+        return fail("wireless_security_diagnostic_untrusted_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            207,
+            "wireless_duplicate_sequence",
+            WirelessSecurityRejectReason::DUPLICATE_SEQUENCE,
+            now_ms + 8) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_duplicate_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.duplicate_sequence_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 207 ||
+        !isSameText(security_out.last_error_code, "wireless_duplicate_sequence")) {
+        return fail("wireless_security_diagnostic_duplicate_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityRejected(
+            1001,
+            updated_mac,
+            true,
+            208,
+            "device_update_failed",
+            WirelessSecurityRejectReason::INVALID_PACKET,
+            now_ms + 9) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_invalid_packet_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(1001, security_out) != RegistryResult::OK ||
+        security_out.invalid_packet_reject_count != 1 ||
+        security_out.last_rejected_sequence_id != 208 ||
+        !isSameText(security_out.last_error_code, "device_update_failed")) {
+        return fail("wireless_security_diagnostic_invalid_packet_fields_invalid");
+    }
+
+    if (registry_.updateWirelessNodeSecurityAccepted(
+            9999,
+            updated_mac,
+            true,
+            301,
+            now_ms + 10) != RegistryResult::NOT_FOUND) {
+        return fail("wireless_security_diagnostic_missing_accept_invalid");
+    }
+    if (registry_.updateWirelessNodeSecurityRejected(
+            9999,
+            updated_mac,
+            true,
+            302,
+            "wireless_checksum_invalid",
+            WirelessSecurityRejectReason::CHECKSUM_INVALID,
+            now_ms + 11) != RegistryResult::NOT_FOUND) {
+        return fail("wireless_security_diagnostic_missing_reject_invalid");
+    }
+    if (registry_.updateWirelessNodeSecurityAccepted(
+            0,
+            updated_mac,
+            true,
+            303,
+            now_ms + 12) != RegistryResult::INVALID_ID) {
+        return fail("wireless_security_diagnostic_invalid_accept_invalid");
+    }
+    if (registry_.updateWirelessNodeSecurityRejected(
+            0,
+            updated_mac,
+            true,
+            304,
+            "wireless_checksum_invalid",
+            WirelessSecurityRejectReason::CHECKSUM_INVALID,
+            now_ms + 13) != RegistryResult::INVALID_ID) {
+        return fail("wireless_security_diagnostic_invalid_reject_invalid");
+    }
+
+    WirelessNodeSecurityDiagnosticRecord saturation_record = security_record;
+    saturation_record.node_id = 2002;
+    saturation_record.checksum_reject_count = 65535U;
+    RegistryWriteResult saturation_result =
+        registry_.registerWirelessNodeSecurityDiagnosticWithResult(saturation_record);
+    if (saturation_result.result != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_saturation_register_failed");
+    }
+    if (registry_.updateWirelessNodeSecurityRejected(
+            2002,
+            updated_mac,
+            true,
+            401,
+            "wireless_checksum_invalid",
+            WirelessSecurityRejectReason::CHECKSUM_INVALID,
+            now_ms + 14) != RegistryResult::OK) {
+        return fail("wireless_security_diagnostic_saturation_update_failed");
+    }
+    if (registry_.getWirelessNodeSecurityDiagnostic(2002, security_out) != RegistryResult::OK ||
+        security_out.checksum_reject_count != 65535U) {
+        return fail("wireless_security_diagnostic_saturation_fields_invalid");
+    }
+
     {
         WirelessPacketHeader test_header;
         test_header.magic = WIRELESS_PACKET_MAGIC;

@@ -623,6 +623,98 @@ RegistryResult Registry::getWirelessNodeSecurityDiagnosticByIndex(
     return RegistryResult::OK;
 }
 
+RegistryResult Registry::updateWirelessNodeSecurityAccepted(
+    uint32_t node_id,
+    const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE],
+    bool has_mac_address,
+    uint32_t sequence_id,
+    uint32_t now_ms) {
+    if (node_id == 0) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findWirelessNodeSecurityDiagnosticIndex(node_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    WirelessNodeSecurityDiagnosticRecord& record =
+        wireless_node_security_diagnostics_[index];
+    record.last_seen_ms = now_ms;
+    record.last_accepted_sequence_id = sequence_id;
+    record.last_error_code = "none";
+    record.accepted_packet_count =
+        incrementSaturatingUint16(record.accepted_packet_count);
+
+    if (has_mac_address) {
+        for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+            record.mac_address[i] = mac_address[i];
+        }
+        record.has_mac_address = true;
+    }
+
+    return RegistryResult::OK;
+}
+
+RegistryResult Registry::updateWirelessNodeSecurityRejected(
+    uint32_t node_id,
+    const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE],
+    bool has_mac_address,
+    uint32_t sequence_id,
+    const char* error_code,
+    WirelessSecurityRejectReason reason,
+    uint32_t now_ms) {
+    if (node_id == 0) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findWirelessNodeSecurityDiagnosticIndex(node_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    WirelessNodeSecurityDiagnosticRecord& record =
+        wireless_node_security_diagnostics_[index];
+    record.last_seen_ms = now_ms;
+    record.last_rejected_sequence_id = sequence_id;
+    record.last_error_code = error_code == 0 ? "none" : error_code;
+
+    if (reason == WirelessSecurityRejectReason::CHECKSUM_INVALID) {
+        record.checksum_reject_count =
+            incrementSaturatingUint16(record.checksum_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::MAC_NOT_ALLOWED) {
+        record.mac_not_allowed_reject_count =
+            incrementSaturatingUint16(record.mac_not_allowed_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::MAC_NODE_MISMATCH) {
+        record.mac_node_mismatch_reject_count =
+            incrementSaturatingUint16(record.mac_node_mismatch_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::NODE_BLOCKED) {
+        record.blocked_reject_count =
+            incrementSaturatingUint16(record.blocked_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::NODE_NOT_ALLOWED) {
+        record.not_allowed_reject_count =
+            incrementSaturatingUint16(record.not_allowed_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::UNTRUSTED) {
+        record.untrusted_reject_count =
+            incrementSaturatingUint16(record.untrusted_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::DUPLICATE_SEQUENCE) {
+        record.duplicate_sequence_reject_count =
+            incrementSaturatingUint16(record.duplicate_sequence_reject_count);
+    } else if (reason == WirelessSecurityRejectReason::INVALID_PACKET) {
+        record.invalid_packet_reject_count =
+            incrementSaturatingUint16(record.invalid_packet_reject_count);
+    }
+
+    if (has_mac_address) {
+        for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+            record.mac_address[i] = mac_address[i];
+        }
+        record.has_mac_address = true;
+    }
+
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
