@@ -4810,6 +4810,116 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
         return fail("wireless_security_diagnostic_saturation_fields_invalid");
     }
 
+    CapabilityPayload security_api_canonical_before;
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, security_api_canonical_before)) {
+        return fail("wireless_security_api_canonical_before_missing");
+    }
+    const uint8_t security_api_provider_count_before = registry_.capabilityProviderCount();
+
+    ApiWirelessSecurityDiagnostic security_api_out;
+    if (!api_.getWirelessSecurityDiagnostic(1001, security_api_out)) {
+        return fail("wireless_security_api_get_failed");
+    }
+    if (!security_api_out.ok ||
+        security_api_out.registry_result != RegistryResult::OK ||
+        security_api_out.node_id != 1001 ||
+        !security_api_out.has_mac_address ||
+        !wirelessMacAddressEquals(security_api_out.mac_address, updated_mac) ||
+        security_api_out.allow_state != WirelessNodeAllowState::ALLOWED ||
+        security_api_out.trust_state != WirelessTrustState::TRUSTED ||
+        security_api_out.last_seen_ms != now_ms + 9 ||
+        security_api_out.last_accepted_sequence_id != 101 ||
+        security_api_out.last_rejected_sequence_id != 208 ||
+        !isSameText(security_api_out.last_error_code, "device_update_failed") ||
+        security_api_out.accepted_packet_count != 1 ||
+        security_api_out.checksum_reject_count != 1 ||
+        security_api_out.mac_not_allowed_reject_count != 1 ||
+        security_api_out.mac_node_mismatch_reject_count != 1 ||
+        security_api_out.blocked_reject_count != 1 ||
+        security_api_out.not_allowed_reject_count != 1 ||
+        security_api_out.untrusted_reject_count != 1 ||
+        security_api_out.duplicate_sequence_reject_count != 1 ||
+        security_api_out.invalid_packet_reject_count != 1 ||
+        !isSameText(security_api_out.error_code, "none")) {
+        return fail("wireless_security_api_get_fields_invalid");
+    }
+
+    ApiWirelessSecurityDiagnostic security_api_second_read;
+    if (!api_.getWirelessSecurityDiagnostic(1001, security_api_second_read)) {
+        return fail("wireless_security_api_second_get_failed");
+    }
+    if (security_api_second_read.accepted_packet_count != security_api_out.accepted_packet_count ||
+        security_api_second_read.checksum_reject_count != security_api_out.checksum_reject_count ||
+        security_api_second_read.duplicate_sequence_reject_count !=
+            security_api_out.duplicate_sequence_reject_count ||
+        security_api_second_read.last_rejected_sequence_id !=
+            security_api_out.last_rejected_sequence_id) {
+        return fail("wireless_security_api_read_mutated_counters");
+    }
+
+    if (!api_.getWirelessSecurityDiagnosticByIndex(0, security_api_out)) {
+        return fail("wireless_security_api_index_get_failed");
+    }
+    if (!security_api_out.ok ||
+        security_api_out.registry_result != RegistryResult::OK ||
+        security_api_out.node_id != 1001) {
+        return fail("wireless_security_api_index_fields_invalid");
+    }
+
+    if (api_.getWirelessSecurityDiagnostic(9999, security_api_out)) {
+        return fail("wireless_security_api_missing_succeeded");
+    }
+    if (security_api_out.registry_result != RegistryResult::NOT_FOUND) {
+        return fail("wireless_security_api_missing_result_invalid");
+    }
+    if (api_.getWirelessSecurityDiagnostic(0, security_api_out)) {
+        return fail("wireless_security_api_invalid_succeeded");
+    }
+    if (security_api_out.registry_result != RegistryResult::INVALID_ID) {
+        return fail("wireless_security_api_invalid_result_invalid");
+    }
+    if (api_.getWirelessSecurityDiagnosticByIndex(99, security_api_out)) {
+        return fail("wireless_security_api_index_missing_succeeded");
+    }
+    if (security_api_out.registry_result != RegistryResult::NOT_FOUND) {
+        return fail("wireless_security_api_index_missing_result_invalid");
+    }
+
+    ApiWirelessSecuritySummary security_summary;
+    if (!api_.getWirelessSecuritySummary(security_summary)) {
+        return fail("wireless_security_api_summary_failed");
+    }
+    if (!security_summary.ok ||
+        security_summary.registry_result != RegistryResult::OK ||
+        security_summary.node_count != registry_.wirelessNodeSecurityDiagnosticCount() ||
+        security_summary.total_accepted_packets != 1 ||
+        security_summary.total_rejected_packets != 65543UL ||
+        security_summary.total_checksum_rejects != 65536UL ||
+        security_summary.total_mac_rejects != 2 ||
+        security_summary.total_duplicate_rejects != 1 ||
+        !isSameText(security_summary.error_code, "none")) {
+        return fail("wireless_security_api_summary_fields_invalid");
+    }
+
+    CapabilityPayload security_api_canonical_after;
+    if (!registry_.getCapabilityPayload(CAP_TEMPERATURE, security_api_canonical_after)) {
+        return fail("wireless_security_api_canonical_after_missing");
+    }
+    if (security_api_canonical_after.value_float != security_api_canonical_before.value_float ||
+        security_api_canonical_after.timestamp_ms != security_api_canonical_before.timestamp_ms ||
+        registry_.capabilityProviderCount() != security_api_provider_count_before) {
+        return fail("wireless_security_api_read_changed_state");
+    }
+
+    ApiCapabilityState security_api_temperature_state;
+    if (!api_.getTemperatureState(security_api_temperature_state)) {
+        return fail("wireless_security_api_temperature_failed");
+    }
+    if (security_api_temperature_state.payload.value_float !=
+        security_api_canonical_before.value_float) {
+        return fail("wireless_security_api_temperature_changed");
+    }
+
     {
         WirelessPacketHeader test_header;
         test_header.magic = WIRELESS_PACKET_MAGIC;

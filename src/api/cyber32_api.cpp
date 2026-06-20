@@ -382,6 +382,95 @@ bool Cyber32Api::getWirelessNodeSummary(ApiWirelessNodeSummary& out_response) {
     return true;
 }
 
+bool Cyber32Api::getWirelessSecurityDiagnostic(
+    uint32_t node_id,
+    ApiWirelessSecurityDiagnostic& out_response) {
+    if (node_id == 0) {
+        fillUnavailableWirelessSecurityDiagnostic(out_response, RegistryResult::INVALID_ID, node_id);
+        return false;
+    }
+    if (registry_ == 0) {
+        fillUnavailableWirelessSecurityDiagnostic(out_response, RegistryResult::NOT_ATTACHED, node_id);
+        return false;
+    }
+
+    WirelessNodeSecurityDiagnosticRecord record;
+    const RegistryResult result = registry_->getWirelessNodeSecurityDiagnostic(node_id, record);
+    if (result != RegistryResult::OK) {
+        fillUnavailableWirelessSecurityDiagnostic(out_response, result, node_id);
+        return false;
+    }
+
+    fillWirelessSecurityDiagnosticFromRecord(record, out_response);
+    return true;
+}
+
+bool Cyber32Api::getWirelessSecurityDiagnosticByIndex(
+    uint8_t index,
+    ApiWirelessSecurityDiagnostic& out_response) {
+    if (registry_ == 0) {
+        fillUnavailableWirelessSecurityDiagnostic(out_response, RegistryResult::NOT_ATTACHED, 0);
+        return false;
+    }
+
+    WirelessNodeSecurityDiagnosticRecord record;
+    const RegistryResult result = registry_->getWirelessNodeSecurityDiagnosticByIndex(index, record);
+    if (result != RegistryResult::OK) {
+        fillUnavailableWirelessSecurityDiagnostic(out_response, result, 0);
+        return false;
+    }
+
+    fillWirelessSecurityDiagnosticFromRecord(record, out_response);
+    return true;
+}
+
+bool Cyber32Api::getWirelessSecuritySummary(ApiWirelessSecuritySummary& out_response) {
+    if (registry_ == 0) {
+        fillUnavailableWirelessSecuritySummary(out_response, RegistryResult::NOT_ATTACHED);
+        return false;
+    }
+
+    const uint8_t node_count = registry_->wirelessNodeSecurityDiagnosticCount();
+    uint32_t total_accepted_packets = 0;
+    uint32_t total_rejected_packets = 0;
+    uint32_t total_checksum_rejects = 0;
+    uint32_t total_mac_rejects = 0;
+    uint32_t total_duplicate_rejects = 0;
+
+    for (uint8_t i = 0; i < node_count; ++i) {
+        WirelessNodeSecurityDiagnosticRecord record;
+        if (registry_->getWirelessNodeSecurityDiagnosticByIndex(i, record) != RegistryResult::OK) {
+            fillUnavailableWirelessSecuritySummary(out_response, RegistryResult::INTERNAL_ERROR);
+            return false;
+        }
+
+        total_accepted_packets += record.accepted_packet_count;
+        total_checksum_rejects += record.checksum_reject_count;
+        total_mac_rejects += record.mac_not_allowed_reject_count;
+        total_mac_rejects += record.mac_node_mismatch_reject_count;
+        total_duplicate_rejects += record.duplicate_sequence_reject_count;
+        total_rejected_packets += record.checksum_reject_count;
+        total_rejected_packets += record.mac_not_allowed_reject_count;
+        total_rejected_packets += record.mac_node_mismatch_reject_count;
+        total_rejected_packets += record.blocked_reject_count;
+        total_rejected_packets += record.not_allowed_reject_count;
+        total_rejected_packets += record.untrusted_reject_count;
+        total_rejected_packets += record.duplicate_sequence_reject_count;
+        total_rejected_packets += record.invalid_packet_reject_count;
+    }
+
+    out_response.ok = true;
+    out_response.registry_result = RegistryResult::OK;
+    out_response.node_count = node_count;
+    out_response.total_accepted_packets = total_accepted_packets;
+    out_response.total_rejected_packets = total_rejected_packets;
+    out_response.total_checksum_rejects = total_checksum_rejects;
+    out_response.total_mac_rejects = total_mac_rejects;
+    out_response.total_duplicate_rejects = total_duplicate_rejects;
+    out_response.error_code = "none";
+    return true;
+}
+
 bool Cyber32Api::commandServoPosition(
     uint32_t now_ms,
     const ApiServoCommandRequest& request,
@@ -732,6 +821,75 @@ void Cyber32Api::fillUnavailableWirelessNodeSummary(
     out_response.allowed_count = 0;
     out_response.blocked_count = 0;
     out_response.unknown_count = 0;
+    out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
+}
+
+void Cyber32Api::fillWirelessSecurityDiagnosticFromRecord(
+    const WirelessNodeSecurityDiagnosticRecord& record,
+    ApiWirelessSecurityDiagnostic& out_response) const {
+    out_response.ok = true;
+    out_response.registry_result = RegistryResult::OK;
+    out_response.node_id = record.node_id;
+    for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+        out_response.mac_address[i] = record.mac_address[i];
+    }
+    out_response.has_mac_address = record.has_mac_address;
+    out_response.allow_state = record.allow_state;
+    out_response.trust_state = record.trust_state;
+    out_response.last_seen_ms = record.last_seen_ms;
+    out_response.last_accepted_sequence_id = record.last_accepted_sequence_id;
+    out_response.last_rejected_sequence_id = record.last_rejected_sequence_id;
+    out_response.last_error_code = record.last_error_code;
+    out_response.checksum_reject_count = record.checksum_reject_count;
+    out_response.mac_not_allowed_reject_count = record.mac_not_allowed_reject_count;
+    out_response.mac_node_mismatch_reject_count = record.mac_node_mismatch_reject_count;
+    out_response.blocked_reject_count = record.blocked_reject_count;
+    out_response.not_allowed_reject_count = record.not_allowed_reject_count;
+    out_response.untrusted_reject_count = record.untrusted_reject_count;
+    out_response.duplicate_sequence_reject_count = record.duplicate_sequence_reject_count;
+    out_response.invalid_packet_reject_count = record.invalid_packet_reject_count;
+    out_response.accepted_packet_count = record.accepted_packet_count;
+    out_response.error_code = "none";
+}
+
+void Cyber32Api::fillUnavailableWirelessSecurityDiagnostic(
+    ApiWirelessSecurityDiagnostic& out_response,
+    RegistryResult registry_result,
+    uint32_t node_id) const {
+    out_response.ok = false;
+    out_response.registry_result = registry_result;
+    out_response.node_id = node_id;
+    clearWirelessMacAddress(out_response.mac_address);
+    out_response.has_mac_address = false;
+    out_response.allow_state = WirelessNodeAllowState::UNKNOWN;
+    out_response.trust_state = WirelessTrustState::UNKNOWN;
+    out_response.last_seen_ms = 0;
+    out_response.last_accepted_sequence_id = 0;
+    out_response.last_rejected_sequence_id = 0;
+    out_response.last_error_code = "none";
+    out_response.checksum_reject_count = 0;
+    out_response.mac_not_allowed_reject_count = 0;
+    out_response.mac_node_mismatch_reject_count = 0;
+    out_response.blocked_reject_count = 0;
+    out_response.not_allowed_reject_count = 0;
+    out_response.untrusted_reject_count = 0;
+    out_response.duplicate_sequence_reject_count = 0;
+    out_response.invalid_packet_reject_count = 0;
+    out_response.accepted_packet_count = 0;
+    out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
+}
+
+void Cyber32Api::fillUnavailableWirelessSecuritySummary(
+    ApiWirelessSecuritySummary& out_response,
+    RegistryResult registry_result) const {
+    out_response.ok = false;
+    out_response.registry_result = registry_result;
+    out_response.node_count = 0;
+    out_response.total_accepted_packets = 0;
+    out_response.total_rejected_packets = 0;
+    out_response.total_checksum_rejects = 0;
+    out_response.total_mac_rejects = 0;
+    out_response.total_duplicate_rejects = 0;
     out_response.error_code = ERR_CAPABILITY_UNAVAILABLE;
 }
 

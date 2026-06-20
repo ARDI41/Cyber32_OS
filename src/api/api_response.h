@@ -7,6 +7,7 @@
 #include "../core/types/runtime_state.h"
 #include "../core/types/wireless_node_allowlist_records.h"
 #include "../core/types/wireless_node_records.h"
+#include "../core/types/wireless_node_security_diagnostics.h"
 #include "../registry/capability_provider_record.h"
 #include "../registry/registry_records.h"
 #include "../registry/registry_result.h"
@@ -129,6 +130,42 @@ struct ApiWirelessNodeSummary {
     uint8_t allowed_count;
     uint8_t blocked_count;
     uint8_t unknown_count;
+    const char* error_code;
+};
+
+struct ApiWirelessSecurityDiagnostic {
+    bool ok;
+    RegistryResult registry_result;
+    uint32_t node_id;
+    uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE];
+    bool has_mac_address;
+    WirelessNodeAllowState allow_state;
+    WirelessTrustState trust_state;
+    uint32_t last_seen_ms;
+    uint32_t last_accepted_sequence_id;
+    uint32_t last_rejected_sequence_id;
+    const char* last_error_code;
+    uint16_t checksum_reject_count;
+    uint16_t mac_not_allowed_reject_count;
+    uint16_t mac_node_mismatch_reject_count;
+    uint16_t blocked_reject_count;
+    uint16_t not_allowed_reject_count;
+    uint16_t untrusted_reject_count;
+    uint16_t duplicate_sequence_reject_count;
+    uint16_t invalid_packet_reject_count;
+    uint16_t accepted_packet_count;
+    const char* error_code;
+};
+
+struct ApiWirelessSecuritySummary {
+    bool ok;
+    RegistryResult registry_result;
+    uint8_t node_count;
+    uint32_t total_accepted_packets;
+    uint32_t total_rejected_packets;
+    uint32_t total_checksum_rejects;
+    uint32_t total_mac_rejects;
+    uint32_t total_duplicate_rejects;
     const char* error_code;
 };
 
