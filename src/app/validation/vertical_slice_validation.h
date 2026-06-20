@@ -213,6 +213,7 @@ private:
     bool validateEspNowWirelessPacketTransportAdapter();
     bool validateWirelessServiceTransportAdapterAttachment();
     bool validateWirelessServiceProcessPacketsAdapterPath(uint32_t now_ms);
+    bool validateEspNowAdapterWirelessServicePath(uint32_t now_ms);
     bool validateCapabilityProviderStorage(uint32_t now_ms);
     void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;

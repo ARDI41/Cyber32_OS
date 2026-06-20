@@ -289,6 +289,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateEspNowAdapterWirelessServicePath(now_ms)) {
+        return false;
+    }
+
     if (!validateCapabilityProviderStorage(now_ms)) {
         return false;
     }
@@ -445,6 +449,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateWirelessServiceProcessPacketsAdapterPath(now_ms)) {
+        return false;
+    }
+
+    if (!validateEspNowAdapterWirelessServicePath(now_ms)) {
         return false;
     }
 
@@ -3685,6 +3693,381 @@ bool VerticalSliceValidation::validateWirelessServiceProcessPacketsAdapterPath(u
     }
     if (provider_out.latest_payload.value_float != 27.5F) {
         return fail("wireless_service_process_policy_changed_payload");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateEspNowAdapterWirelessServicePath(uint32_t now_ms) {
+    Registry local_registry;
+    local_registry.begin();
+
+    CapabilityPayload canonical_payload;
+    canonical_payload.capability_id = CAP_TEMPERATURE;
+    canonical_payload.schema_version = 1;
+    canonical_payload.timestamp_ms = now_ms;
+    canonical_payload.available = Availability::AVAILABLE;
+    canonical_payload.stale = StaleState::FRESH;
+    canonical_payload.value_type = PayloadValueType::FLOAT;
+    canonical_payload.value_float = 22.4F;
+    canonical_payload.value_int = 0;
+    canonical_payload.unit = "degree_celsius";
+    canonical_payload.quality = "valid";
+    canonical_payload.error_code = "none";
+
+    ModuleRecord module;
+    module.module_id = "module-espnow-adapter-validation-001";
+    module.module_type = "wireless_node";
+    module.status = RecordStatus::AVAILABLE;
+    module.device_count = 1;
+    module.capability_count = 1;
+    if (local_registry.registerModuleWithResult(module).result != RegistryResult::OK) {
+        return fail("espnow_service_path_module_register_failed");
+    }
+
+    DeviceRecord device;
+    device.device_id = "device-espnow-adapter-validation-001";
+    device.device_type = "wireless_sensor";
+    device.status = RecordStatus::AVAILABLE;
+    device.module_index = 0;
+    device.capability_count = 1;
+    if (local_registry.registerDeviceWithResult(device).result != RegistryResult::OK) {
+        return fail("espnow_service_path_device_register_failed");
+    }
+
+    CapabilityRecord capability;
+    capability.capability_id = CAP_TEMPERATURE;
+    capability.category = "sensors";
+    capability.kind = "sensor";
+    capability.data_type = PayloadValueType::FLOAT;
+    capability.access = "read";
+    capability.status = RecordStatus::AVAILABLE;
+    capability.owner_device_index = 0;
+    capability.latest_payload = canonical_payload;
+    if (local_registry.registerCapabilityWithResult(capability).result != RegistryResult::OK) {
+        return fail("espnow_service_path_capability_register_failed");
+    }
+
+    WirelessNodeAllowlistRecord allowlist_record;
+    allowlist_record.node_id = 1001;
+    allowlist_record.allow_state = WirelessNodeAllowState::ALLOWED;
+    allowlist_record.trust_state = WirelessTrustState::TRUSTED;
+    allowlist_record.added_at_ms = now_ms;
+    allowlist_record.last_seen_ms = now_ms;
+    allowlist_record.has_mac_address = false;
+    clearWirelessMacAddress(allowlist_record.mac_address);
+    if (local_registry.registerWirelessNodeAllowlistRecordWithResult(allowlist_record).result !=
+        RegistryResult::OK) {
+        return fail("espnow_service_path_allowlist_register_failed");
+    }
+
+    CapabilityPayload stale_provider_payload;
+    stale_provider_payload.capability_id = CAP_TEMPERATURE;
+    stale_provider_payload.schema_version = 1;
+    stale_provider_payload.timestamp_ms = 0;
+    stale_provider_payload.available = Availability::AVAILABLE;
+    stale_provider_payload.stale = StaleState::STALE;
+    stale_provider_payload.value_type = PayloadValueType::FLOAT;
+    stale_provider_payload.value_float = 0.0F;
+    stale_provider_payload.value_int = 0;
+    stale_provider_payload.unit = "degree_celsius";
+    stale_provider_payload.quality = "stale";
+    stale_provider_payload.error_code = "none";
+
+    CapabilityProviderRecord provider;
+    provider.provider_id = WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID;
+    provider.capability_id = CAP_TEMPERATURE;
+    provider.owner_module_index = 0;
+    provider.owner_device_index = 0;
+    provider.provider_type = CapabilityProviderType::WIRELESS;
+    provider.status = CapabilityProviderStatus::STALE;
+    provider.priority = 20;
+    provider.last_update_ms = 0;
+    provider.latest_payload = stale_provider_payload;
+    if (local_registry.registerCapabilityProviderWithResult(provider).result !=
+        RegistryResult::OK) {
+        return fail("espnow_service_path_provider_register_failed");
+    }
+
+    WirelessTemperatureDevice local_device;
+    if (!local_device.begin(1001)) {
+        return fail("espnow_service_path_device_begin_failed");
+    }
+    local_device.setTrustState(WirelessTrustState::TRUSTED);
+
+    EspNowTransportDriver espnow_driver;
+    WirelessPacketTransportAdapter adapter =
+        makeEspNowTransportAdapter(&espnow_driver);
+    if (!wirelessPacketTransportAdapterValid(adapter)) {
+        return fail("espnow_service_path_adapter_invalid");
+    }
+
+    WirelessService local_service;
+    local_service.begin();
+    local_service.attachRegistry(&local_registry);
+    if (!local_service.attachTransportAdapter(adapter)) {
+        return fail("espnow_service_path_adapter_attach_failed");
+    }
+    local_service.attachWirelessTemperatureDevice(&local_device);
+
+    WirelessPacketHeader header;
+    header.magic = WIRELESS_PACKET_MAGIC;
+    header.protocol_version = WIRELESS_PROTOCOL_VERSION;
+    header.packet_type = WirelessPacketType::CAPABILITY_VALUE;
+    header.flags = 0;
+    header.sequence_id = 801;
+    header.node_id = 1001;
+    header.payload_length = static_cast<uint8_t>(
+        sizeof(WirelessCapabilityValue) + sizeof(WirelessNodeDiagnostics));
+    header.checksum = 0;
+
+    WirelessCapabilityValue value;
+    copyWirelessCapabilityId(value.capability_id, CAP_TEMPERATURE);
+    value.payload_type = WirelessPayloadType::FLOAT;
+    value.value_float = 31.5F;
+    value.value_int = 0;
+    copyWirelessCapabilityId(value.error_code, "none");
+
+    WirelessNodeDiagnostics diagnostics;
+    diagnostics.battery_present = true;
+    diagnostics.battery_level_percent = 82.0F;
+    diagnostics.battery_voltage = 3.72F;
+    diagnostics.signal_quality_percent = 74.0F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+
+    enum {
+        EXPECTED_STRUCTURED_PACKET_SIZE =
+            sizeof(WirelessPacketHeader) +
+            sizeof(WirelessCapabilityValue) +
+            sizeof(WirelessNodeDiagnostics)
+    };
+    if (EXPECTED_STRUCTURED_PACKET_SIZE > WIRELESS_MAX_PACKET_SIZE) {
+        return fail("espnow_service_path_packet_size_invalid");
+    }
+
+    uint8_t raw_payload[EXPECTED_STRUCTURED_PACKET_SIZE];
+    uint16_t raw_offset = 0;
+    const uint8_t* header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    const uint8_t* value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    const uint8_t* diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+
+    const uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE] = {
+        0xAA,
+        0xBB,
+        0xCC,
+        0x44,
+        0x55,
+        0x66
+    };
+    if (!espnow_driver.injectRawPayloadForTest(
+            source_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_raw_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_decode_failed");
+    }
+    if (!adapter.has_received_packet(adapter.context)) {
+        return fail("espnow_service_path_packet_missing");
+    }
+
+    if (!local_service.processPackets(now_ms + 1)) {
+        return fail(local_service.lastErrorCode());
+    }
+
+    CapabilityProviderRecord provider_out;
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_provider_missing");
+    }
+    if (provider_out.status != CapabilityProviderStatus::AVAILABLE) {
+        return fail("espnow_service_path_provider_status_invalid");
+    }
+    if (!isSameText(provider_out.latest_payload.capability_id, CAP_TEMPERATURE) ||
+        provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.latest_payload.stale != StaleState::FRESH ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_provider_payload_invalid");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_packet_not_cleared");
+    }
+
+    header.sequence_id = 802;
+    header.node_id = 1001;
+    value.value_float = 32.5F;
+    header.checksum = static_cast<uint16_t>(
+        calculateWirelessPacketChecksum(header, value, diagnostics) + 1);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            source_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_bad_checksum_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_bad_checksum_decode_failed");
+    }
+    if (local_service.processPackets(now_ms + 2)) {
+        return fail("espnow_service_path_bad_checksum_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_checksum_invalid")) {
+        return fail("espnow_service_path_bad_checksum_error_invalid");
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_bad_checksum_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_bad_checksum_changed_provider");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_bad_checksum_not_cleared");
+    }
+
+    header.sequence_id = 803;
+    header.node_id = 2002;
+    value.value_float = 33.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            source_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_unknown_node_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_unknown_node_decode_failed");
+    }
+    if (local_service.processPackets(now_ms + 3)) {
+        return fail("espnow_service_path_unknown_node_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_node_not_allowed")) {
+        return fail("espnow_service_path_unknown_node_error_invalid");
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_unknown_node_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_unknown_node_changed_provider");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_unknown_node_not_cleared");
+    }
+
+    header.sequence_id = 801;
+    header.node_id = 1001;
+    value.value_float = 34.5F;
+    header.checksum = calculateWirelessPacketChecksum(header, value, diagnostics);
+    raw_offset = 0;
+    header_bytes = reinterpret_cast<const uint8_t*>(&header);
+    for (uint16_t i = 0; i < sizeof(WirelessPacketHeader); ++i) {
+        raw_payload[raw_offset] = header_bytes[i];
+        ++raw_offset;
+    }
+    value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    for (uint16_t i = 0; i < sizeof(WirelessCapabilityValue); ++i) {
+        raw_payload[raw_offset] = value_bytes[i];
+        ++raw_offset;
+    }
+    diagnostics_bytes = reinterpret_cast<const uint8_t*>(&diagnostics);
+    for (uint16_t i = 0; i < sizeof(WirelessNodeDiagnostics); ++i) {
+        raw_payload[raw_offset] = diagnostics_bytes[i];
+        ++raw_offset;
+    }
+    if (!espnow_driver.injectRawPayloadForTest(
+            source_mac,
+            raw_payload,
+            static_cast<uint16_t>(EXPECTED_STRUCTURED_PACKET_SIZE))) {
+        return fail("espnow_service_path_duplicate_inject_failed");
+    }
+    if (!espnow_driver.decodePendingRawPayload()) {
+        return fail("espnow_service_path_duplicate_decode_failed");
+    }
+    if (local_service.processPackets(now_ms + 4)) {
+        return fail("espnow_service_path_duplicate_succeeded");
+    }
+    if (!isSameText(local_service.lastErrorCode(), "wireless_duplicate_sequence")) {
+        return fail("espnow_service_path_duplicate_error_invalid");
+    }
+    if (local_registry.getCapabilityProvider(
+            WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID,
+            provider_out) != RegistryResult::OK) {
+        return fail("espnow_service_path_duplicate_provider_missing");
+    }
+    if (provider_out.latest_payload.value_float != 31.5F ||
+        provider_out.last_update_ms != now_ms + 1) {
+        return fail("espnow_service_path_duplicate_changed_provider");
+    }
+    if (adapter.has_received_packet(adapter.context) ||
+        espnow_driver.hasReceivedPacket() ||
+        espnow_driver.hasRawPayload()) {
+        return fail("espnow_service_path_duplicate_not_cleared");
+    }
+
+    CapabilityPayload canonical_after;
+    if (!local_registry.getCapabilityPayload(CAP_TEMPERATURE, canonical_after)) {
+        return fail("espnow_service_path_canonical_missing");
+    }
+    if (canonical_after.value_float != 22.4F ||
+        canonical_after.timestamp_ms != now_ms ||
+        canonical_after.stale != StaleState::FRESH) {
+        return fail("espnow_service_path_canonical_changed");
     }
 
     return true;
