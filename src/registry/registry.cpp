@@ -12,6 +12,7 @@ Registry::Registry()
       capability_provider_count_(0),
       active_capability_provider_count_(0),
       wireless_node_allowlist_count_(0),
+      wireless_node_security_diagnostic_count_(0),
       event_bus_(0) {
 }
 
@@ -23,6 +24,7 @@ void Registry::begin() {
     capability_provider_count_ = 0;
     active_capability_provider_count_ = 0;
     wireless_node_allowlist_count_ = 0;
+    wireless_node_security_diagnostic_count_ = 0;
     event_bus_ = 0;
 }
 
@@ -568,6 +570,59 @@ RegistryResult Registry::getWirelessNodeAllowlistRecordByMac(
     return RegistryResult::NOT_FOUND;
 }
 
+RegistryWriteResult Registry::registerWirelessNodeSecurityDiagnosticWithResult(
+    const WirelessNodeSecurityDiagnosticRecord& record) {
+    RegistryWriteResult result = {RegistryResult::OK, 255};
+
+    if (record.node_id == 0) {
+        result.result = RegistryResult::INVALID_ID;
+        return result;
+    }
+    if (findWirelessNodeSecurityDiagnosticIndex(record.node_id) != NOT_FOUND) {
+        result.result = RegistryResult::DUPLICATE_ID;
+        return result;
+    }
+    if (wireless_node_security_diagnostic_count_ >= MAX_WIRELESS_NODE_SECURITY_DIAGNOSTICS) {
+        result.result = RegistryResult::TABLE_FULL;
+        return result;
+    }
+
+    const uint8_t assigned_index = wireless_node_security_diagnostic_count_;
+    wireless_node_security_diagnostics_[assigned_index] = record;
+    ++wireless_node_security_diagnostic_count_;
+
+    result.result = RegistryResult::OK;
+    result.index = assigned_index;
+    return result;
+}
+
+RegistryResult Registry::getWirelessNodeSecurityDiagnostic(
+    uint32_t node_id,
+    WirelessNodeSecurityDiagnosticRecord& out_record) const {
+    if (node_id == 0) {
+        return RegistryResult::INVALID_ID;
+    }
+
+    const int8_t index = findWirelessNodeSecurityDiagnosticIndex(node_id);
+    if (index == NOT_FOUND) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_record = wireless_node_security_diagnostics_[index];
+    return RegistryResult::OK;
+}
+
+RegistryResult Registry::getWirelessNodeSecurityDiagnosticByIndex(
+    uint8_t index,
+    WirelessNodeSecurityDiagnosticRecord& out_record) const {
+    if (index >= wireless_node_security_diagnostic_count_) {
+        return RegistryResult::NOT_FOUND;
+    }
+
+    out_record = wireless_node_security_diagnostics_[index];
+    return RegistryResult::OK;
+}
+
 uint8_t Registry::moduleCount() const {
     return module_count_;
 }
@@ -590,6 +645,10 @@ uint8_t Registry::activeProviderCount() const {
 
 uint8_t Registry::wirelessNodeAllowlistCount() const {
     return wireless_node_allowlist_count_;
+}
+
+uint8_t Registry::wirelessNodeSecurityDiagnosticCount() const {
+    return wireless_node_security_diagnostic_count_;
 }
 
 bool Registry::isSameId(const char* left, const char* right) const {
@@ -708,6 +767,16 @@ int8_t Registry::findActiveProviderIndex(const char* capability_id) const {
 int8_t Registry::findWirelessNodeAllowlistIndex(uint32_t node_id) const {
     for (uint8_t i = 0; i < wireless_node_allowlist_count_; ++i) {
         if (wireless_node_allowlist_[i].node_id == node_id) {
+            return static_cast<int8_t>(i);
+        }
+    }
+
+    return NOT_FOUND;
+}
+
+int8_t Registry::findWirelessNodeSecurityDiagnosticIndex(uint32_t node_id) const {
+    for (uint8_t i = 0; i < wireless_node_security_diagnostic_count_; ++i) {
+        if (wireless_node_security_diagnostics_[i].node_id == node_id) {
             return static_cast<int8_t>(i);
         }
     }
