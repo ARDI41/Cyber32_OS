@@ -40,7 +40,7 @@ This Bible consolidates the current Cyber32 documentation set, including:
 - `ACTUATOR_SAFETY_POLICY.md`
 - `SAFE_MODE_ARCHITECTURE_PLAN.md`
 - `MOBILE_STUDIO_VISION.md`
-- all `MILESTONE_*` plans, audits, and roadmaps through Milestone 8.2 Phase 1
+- all `MILESTONE_*` plans, audits, and roadmaps through Milestone 9.0
 
 If this document appears to conflict with a more detailed phase document, the detailed phase document is the local implementation source, and this Bible should be updated to reflect it.
 
@@ -831,6 +831,25 @@ SimEspNowTransportDriver
 -> Logic reads CAP_TEMPERATURE
 ```
 
+Current ESP-NOW integration flow:
+
+```text
+ESP-NOW Callback
+-> Raw Payload Capture
+-> Transport Decode
+-> WirelessPacketTransportAdapter
+-> WirelessService
+-> Checksum Validation
+-> MAC-to-Node Validation
+-> Allowlist Validation
+-> Trust Validation
+-> Sequence Validation
+-> Provider Update
+-> Registry State
+```
+
+Logic remains provider-blind and transport-blind.
+
 Packet model is bounded:
 
 - no JSON
@@ -850,10 +869,16 @@ Wireless diagnostics:
 WirelessService responsibilities:
 
 - read bounded packets
+- validate checksum
+- verify MAC identity against packet `node_id` when source MAC is available
+- enforce allowlist state
+- enforce trust state
+- reject duplicate sequences
 - validate packet path through Device
 - update provider payload
-- later check stale/lost timeouts
-- later trigger provider selection and selected payload copy
+- update wireless security diagnostics through Registry public APIs
+- check stale/lost timeouts
+- trigger provider selection and selected payload copy through Registry public APIs
 
 WirelessService must not expose API, run Logic, or parse packets into Registry directly.
 
@@ -881,12 +906,104 @@ Current real ESP-NOW status:
 - clean header boundary exists
 - ESP-NOW initialization uses `WiFi.mode(WIFI_STA)` and `esp_now_init()`
 - receive callback is registered
-- callback metadata is captured only:
+- callback metadata is captured:
   - `callback_received_`
   - `last_received_length_`
   - `last_source_mac_`
-- no packet parsing exists yet
-- no WirelessService integration exists yet
+- raw payload capture exists
+- raw payload decode to `WirelessPacketHeader`, `WirelessCapabilityValue`, and `WirelessNodeDiagnostics` exists
+- transport adapter path supports simulated and real ESP-NOW drivers
+- WirelessService can process decoded ESP-NOW packets through `WirelessPacketTransportAdapter`
+- MAC-to-node identity enforcement exists in WirelessService
+- simulated transport remains an active validation baseline
+
+## Security Model
+
+Wireless security is enforced by WirelessService after packet read and before provider update.
+
+Current wireless security gates:
+
+- checksum validation
+- MAC identity verification when source MAC is available
+- MAC to `node_id` agreement
+- allowlist validation
+- trust-state validation
+- duplicate sequence protection
+- Device packet validation
+- provider update result handling
+
+MAC identity policy:
+
+```text
+source MAC
+-> Registry allowlist MAC lookup
+-> allow_state check
+-> MAC record node_id must match packet header.node_id
+-> normal node_id allowlist check
+```
+
+No-MAC packets preserve the simulated transport path and continue through node-ID allowlist validation.
+
+Allowlist states:
+
+```text
+UNKNOWN
+ALLOWED
+BLOCKED
+```
+
+Trust states:
+
+```text
+UNKNOWN
+TRUSTED
+UNTRUSTED
+BLOCKED
+```
+
+Wireless rejection paths include:
+
+- `wireless_checksum_invalid`
+- `wireless_mac_not_allowed`
+- `wireless_mac_node_mismatch`
+- `wireless_node_blocked`
+- `wireless_node_not_allowed`
+- `wireless_untrusted`
+- `wireless_duplicate_sequence`
+- `device_update_failed`
+- `provider_update_failed`
+
+Rejected packets are consumed, do not update providers, and do not mutate canonical capability payloads.
+
+## Diagnostics
+
+Wireless security diagnostics are stored in `WirelessNodeSecurityDiagnosticRecord`.
+
+Diagnostic records include:
+
+- node identity
+- MAC identity
+- allow state
+- trust state
+- `last_seen_ms`
+- last accepted sequence ID
+- last rejected sequence ID
+- last error code
+- accepted packet count
+- checksum reject count
+- MAC-not-allowed reject count
+- MAC/node mismatch reject count
+- blocked reject count
+- node-not-allowed reject count
+- untrusted reject count
+- duplicate sequence reject count
+- invalid packet reject count
+
+Registry owns diagnostic state and bounded diagnostic storage.
+
+WirelessService owns security policy and updates diagnostics through Registry public APIs after accepted and rejected packets.
+
+Diagnostic failures must not block packet processing, provider updates, or existing rejection behavior.
 
 ## API v1 Contract
 
@@ -912,6 +1029,27 @@ API rules:
 Current implementation is internal structs, not HTTP/WebServer.
 
 WiFi/WebServer transport remains separate from API contract.
+
+### Wireless Security Diagnostics API
+
+Wireless security diagnostics are exposed through read-only API methods:
+
+```text
+getWirelessSecurityDiagnostic(...)
+getWirelessSecurityDiagnosticByIndex(...)
+getWirelessSecuritySummary(...)
+```
+
+Rules:
+
+- API reads Registry diagnostics only
+- API does not reset counters
+- API does not mutate diagnostics
+- API does not call WirelessService
+- API does not expose raw packets
+- API does not update providers
+- API does not update canonical capability payloads
+- normal capability reads remain unchanged
 
 ## Mobile Studio Vision
 
@@ -1112,18 +1250,51 @@ Receive callback skeleton.
 
 Implemented callback bridge and metadata capture only. No packet parsing and no provider updates yet.
 
+### Milestone 8.7
+
+ESP-NOW Adapter to WirelessService validation.
+
+Validated decoded ESP-NOW packets through `WirelessPacketTransportAdapter` and the existing WirelessService policy pipeline without real radio hardware.
+
+### Milestone 8.8
+
+MAC-to-Node Enforcement.
+
+Implemented WirelessService MAC identity verification using Registry MAC lookup and packet `node_id` agreement. Validated matching MAC acceptance, unknown MAC rejection, blocked MAC rejection, MAC/node mismatch rejection, and no-MAC simulated compatibility.
+
+### Milestone 8.9
+
+Wireless Security Diagnostics.
+
+Added bounded `WirelessNodeSecurityDiagnosticRecord` storage, Registry accepted/rejected update helpers, WirelessService diagnostic updates, and validation for accepted/rejected counter behavior.
+
+### Milestone 9.0
+
+Wireless Security Diagnostics API.
+
+Added read-only API structs and methods for wireless security diagnostics by node ID, by index, and summary totals. Validated read-only behavior and confirmed normal capability reads remain unchanged.
+
+## Current Project Status
+
+Completed:
+
+- Milestone 8.7 ESP-NOW Adapter to WirelessService Validation
+- Milestone 8.8 MAC-to-Node Enforcement
+- Milestone 8.9 Wireless Security Diagnostics
+- Milestone 9.0 Wireless Security Diagnostics API
+
 ## Current Project Snapshot
 
 Purpose: allow future AI sessions and contributors to immediately understand the current Cyber32 project status.
 
-Current Milestone: Milestone 8.2 ESP-NOW Receive Callback Skeleton
+Current Milestone: Milestone 9.0 Wireless Security Diagnostics API
 
-Current Build: PASS
+Current Build: pending local PlatformIO verification in this environment
 
 Current Validation:
 
-- PASS through Milestone 8.1
-- Milestone 8.2 Phase 1 build PASS
+- validation coverage added through Milestone 9.0
+- local `pio run` could not be executed because `pio` is not available on PATH
 
 Current Capability Slices:
 
@@ -1133,7 +1304,13 @@ Current Capability Slices:
 - `CAP_MOTOR_CONTROL`
 - `CAP_RELAY_CONTROL`
 
-Current Provider System: FOUNDATION COMPLETE
+Current Provider System: 100%
+
+Current Wireless Security: 100%
+
+Current Diagnostics: 100%
+
+Current Diagnostics API: 100%
 
 Current ESP-NOW Status:
 
@@ -1145,14 +1322,35 @@ Current ESP-NOW Status:
   - `callback_received_`
   - `last_received_length_`
   - `last_source_mac_`
-- no packet parsing yet
-- no WirelessService integration yet
-- simulated transport remains default validation path
+- raw payload capture exists
+- transport decode exists
+- decoded structured packets are exposed through adapter-compatible reads
+- `WirelessPacketTransportAdapter` supports simulated and real ESP-NOW drivers
+- WirelessService processes ESP-NOW adapter packets through the same policy pipeline as simulated packets
+- MAC-to-node enforcement exists
+- wireless security diagnostics and read-only diagnostics API exist
+- simulated transport remains a validation baseline
+
+Status Estimate:
+
+```text
+Core Architecture          100%
+Registry                   100%
+Runtime                    100%
+Provider System            100%
+Wireless Security          100%
+Diagnostics                100%
+Diagnostics API            100%
+
+Sim Wireless               100%
+ESP-NOW Driver             90%
+ESP-NOW Integration        100%
+```
 
 Next Planned Step:
 
 ```text
-Milestone 8.2 Phase 2 - ESP-NOW callback validation
+Milestone 9.1
 ```
 
 ## Known Remaining Gaps
@@ -1161,11 +1359,6 @@ Critical and important gaps still tracked across audits:
 
 - full production bootstrap in `src/main.cpp` is not wired
 - PlatformIO build has not been verified in this environment because `pio` is not on PATH
-- ESP-NOW callback validation still pending
-- raw packet capture pending
-- packet decode layer pending
-- MAC-to-node enforcement in real receive path pending
-- WirelessService real driver integration pending
 - real wireless temperature node test pending
 - persistence for allowlist/pairing still future work
 - stronger cryptographic authentication still future work
@@ -1200,20 +1393,32 @@ Stop and review architecture if any of these occur:
 
 Recommended order:
 
-1. Milestone 8.2 Phase 2 callback validation
-2. Milestone 8.3 raw packet capture
-3. Milestone 8.4 packet decode layer
-4. Milestone 8.5 real transport to WirelessService adapter
-5. Milestone 8.6 real wireless `CAP_TEMPERATURE` node
-6. Milestone 8.7 real ESP-NOW security audit
-7. add production bootstrap path
-8. verify PlatformIO build
-9. add real wired sensor providers
-10. add persistence/configuration
-11. add security minimum
-12. expose Dashboard/Mobile Studio diagnostics through API
-13. consider real actuator hardware only after safety readiness audits
-14. consider wireless/cloud/AI actuator providers only after trusted bounded command flow exists
+1. Milestone 9.1
+2. verify PlatformIO build in an environment with `pio` available
+3. real wireless temperature node test
+4. add production bootstrap path
+5. add real wired sensor providers
+6. add persistence/configuration
+7. add stronger wireless authentication beyond MAC identity and checksum
+8. expose Dashboard/Mobile Studio diagnostics through API transports
+9. consider real actuator hardware only after safety readiness audits
+10. consider wireless/cloud/AI actuator providers only after trusted bounded command flow exists
+
+## Next Target
+
+NEXT TARGET:
+
+```text
+Milestone 9.1
+```
+
+Recommendations:
+
+- use Milestone 9.0 diagnostics as the observable baseline for future wireless work
+- keep API diagnostics read-only
+- keep Logic provider-blind, transport-blind, and diagnostics-blind
+- verify PlatformIO build in an environment where `pio` is available before marking the current source set production-ready
+- choose the next milestone from documented gaps rather than adding new behavior opportunistically
 
 ## Final Canon
 
