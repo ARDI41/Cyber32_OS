@@ -7,6 +7,46 @@ namespace Cyber32 {
 const char* const WirelessService::WIRELESS_TEMPERATURE_PROVIDER_ID =
     "provider-wireless-temperature-001";
 
+static void updateWirelessSecurityAccepted(
+    Registry* registry,
+    const WirelessPacketHeader& header,
+    const uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE],
+    bool has_source_mac,
+    uint32_t now_ms) {
+    if (registry == 0) {
+        return;
+    }
+
+    registry->updateWirelessNodeSecurityAccepted(
+        header.node_id,
+        source_mac,
+        has_source_mac,
+        header.sequence_id,
+        now_ms);
+}
+
+static void updateWirelessSecurityRejected(
+    Registry* registry,
+    const WirelessPacketHeader& header,
+    const uint8_t source_mac[WIRELESS_MAC_ADDRESS_SIZE],
+    bool has_source_mac,
+    const char* error_code,
+    WirelessSecurityRejectReason reason,
+    uint32_t now_ms) {
+    if (registry == 0) {
+        return;
+    }
+
+    registry->updateWirelessNodeSecurityRejected(
+        header.node_id,
+        source_mac,
+        has_source_mac,
+        header.sequence_id,
+        error_code,
+        reason,
+        now_ms);
+}
+
 WirelessService::WirelessService()
     : registry_(0),
       transport_(0),
@@ -95,6 +135,14 @@ bool WirelessService::processPackets(uint32_t now_ms) {
 
     if (!wirelessPacketChecksumValid(header, value, diagnostics)) {
         last_error_code_ = "wireless_checksum_invalid";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::CHECKSUM_INVALID,
+            now_ms);
         return false;
     }
 
@@ -104,18 +152,50 @@ bool WirelessService::processPackets(uint32_t now_ms) {
             registry_->getWirelessNodeAllowlistRecordByMac(source_mac, allowlist_record);
         if (mac_result != RegistryResult::OK) {
             last_error_code_ = "wireless_mac_not_allowed";
+            updateWirelessSecurityRejected(
+                registry_,
+                header,
+                source_mac,
+                has_source_mac,
+                last_error_code_,
+                WirelessSecurityRejectReason::MAC_NOT_ALLOWED,
+                now_ms);
             return false;
         }
         if (allowlist_record.allow_state == WirelessNodeAllowState::BLOCKED) {
             last_error_code_ = "wireless_node_blocked";
+            updateWirelessSecurityRejected(
+                registry_,
+                header,
+                source_mac,
+                has_source_mac,
+                last_error_code_,
+                WirelessSecurityRejectReason::NODE_BLOCKED,
+                now_ms);
             return false;
         }
         if (allowlist_record.node_id != header.node_id) {
             last_error_code_ = "wireless_mac_node_mismatch";
+            updateWirelessSecurityRejected(
+                registry_,
+                header,
+                source_mac,
+                has_source_mac,
+                last_error_code_,
+                WirelessSecurityRejectReason::MAC_NODE_MISMATCH,
+                now_ms);
             return false;
         }
         if (allowlist_record.allow_state != WirelessNodeAllowState::ALLOWED) {
             last_error_code_ = "wireless_mac_not_allowed";
+            updateWirelessSecurityRejected(
+                registry_,
+                header,
+                source_mac,
+                has_source_mac,
+                last_error_code_,
+                WirelessSecurityRejectReason::MAC_NOT_ALLOWED,
+                now_ms);
             return false;
         }
     }
@@ -124,39 +204,103 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         registry_->getWirelessNodeAllowlistRecord(header.node_id, allowlist_record);
     if (allowlist_result == RegistryResult::NOT_FOUND) {
         last_error_code_ = "wireless_node_not_allowed";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::NODE_NOT_ALLOWED,
+            now_ms);
         return false;
     }
     if (allowlist_result != RegistryResult::OK) {
         last_error_code_ = "wireless_node_not_allowed";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::NODE_NOT_ALLOWED,
+            now_ms);
         return false;
     }
     if (allowlist_record.allow_state == WirelessNodeAllowState::BLOCKED) {
         last_error_code_ = "wireless_node_blocked";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::NODE_BLOCKED,
+            now_ms);
         return false;
     }
     if (allowlist_record.allow_state != WirelessNodeAllowState::ALLOWED) {
         last_error_code_ = "wireless_node_not_allowed";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::NODE_NOT_ALLOWED,
+            now_ms);
         return false;
     }
 
     if (!wirelessTrustAllowsPayloadUpdate(temperature_device_->trustState())) {
         last_error_code_ = "wireless_untrusted";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::UNTRUSTED,
+            now_ms);
         return false;
     }
 
     if (!temperature_device_->sequenceAccepted(header.sequence_id)) {
         last_error_code_ = "wireless_duplicate_sequence";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::DUPLICATE_SEQUENCE,
+            now_ms);
         return false;
     }
 
     if (!temperature_device_->updateFromPacket(now_ms, header, value, diagnostics)) {
         last_error_code_ = "device_update_failed";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::DEVICE_UPDATE_FAILED,
+            now_ms);
         return false;
     }
 
     CapabilityPayload payload;
     if (!temperature_device_->readPayload(payload)) {
         last_error_code_ = "device_payload_unavailable";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::INVALID_PACKET,
+            now_ms);
         return false;
     }
 
@@ -167,10 +311,24 @@ bool WirelessService::processPackets(uint32_t now_ms) {
         now_ms);
     if (provider_result != RegistryResult::OK) {
         last_error_code_ = "provider_update_failed";
+        updateWirelessSecurityRejected(
+            registry_,
+            header,
+            source_mac,
+            has_source_mac,
+            last_error_code_,
+            WirelessSecurityRejectReason::PROVIDER_UPDATE_FAILED,
+            now_ms);
         return false;
     }
 
     temperature_device_->markSequenceAccepted(header.sequence_id);
+    updateWirelessSecurityAccepted(
+        registry_,
+        header,
+        source_mac,
+        has_source_mac,
+        now_ms);
     last_process_result_ = true;
     last_error_code_ = "none";
     return true;
