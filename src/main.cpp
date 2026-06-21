@@ -3,11 +3,16 @@
 #include <WebServer.h>
 #include <ESP32Servo.h>
 
+#include "app/hardware_tests/mac_discovery_helper.h"
+#include "drivers/communication/espnow_transport_driver.h"
+
 const char* ssid = "Cyber32-Setup";
 const char* password = "12345678";
+const int TEMP_ESPNOW_RX_TEST_CHANNEL = 1;
 
 WebServer server(80);
 Servo servo1;
+Cyber32::EspNowTransportDriver espnowRxTestDriver;
 
 const int SERVO_PIN = 18;
 
@@ -67,15 +72,31 @@ void handleRoot() {
 void setup() {
     Serial.begin(115200);
 
+    // Temporary hardware-test MAC discovery for first ESP-NOW base-node setup.
+    Cyber32::MacDiscoveryHelper macDiscoveryHelper;
+    macDiscoveryHelper.begin();
+    macDiscoveryHelper.printBaseNodeMacToSerial();
+
     servo1.setPeriodHertz(50);
     servo1.attach(SERVO_PIN, 500, 2400);
     servo1.write(90);
 
-    WiFi.softAP(ssid, password);
+    // Temporary hardware-test AP+STA channel alignment for ESP-NOW receive visibility.
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP(ssid, password, TEMP_ESPNOW_RX_TEST_CHANNEL);
 
     Serial.println("WiFi AP Started");
+    Serial.print("Cyber32 WiFi channel: ");
+    Serial.println(TEMP_ESPNOW_RX_TEST_CHANNEL);
     Serial.print("IP: ");
     Serial.println(WiFi.softAPIP());
+
+    // Temporary hardware-test ESP-NOW receive hook for first sender packet visibility.
+    if (espnowRxTestDriver.begin()) {
+        Serial.println("Cyber32 ESP-NOW RX test started");
+    } else {
+        Serial.println("Cyber32 ESP-NOW RX test failed");
+    }
 
     server.on("/", handleRoot);
 

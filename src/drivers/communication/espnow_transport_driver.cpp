@@ -1,5 +1,6 @@
 #include "espnow_transport_driver.h"
 
+#include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
 
@@ -18,6 +19,26 @@ static void copyBytesToObject(void* destination, const uint8_t* source, uint16_t
     uint8_t* destination_bytes = static_cast<uint8_t*>(destination);
     for (uint16_t i = 0; i < length; ++i) {
         destination_bytes[i] = source[i];
+    }
+}
+
+static void printMacByte(uint8_t value) {
+    if (value < 0x10U) {
+        Serial.print('0');
+    }
+    Serial.print(value, HEX);
+}
+
+static void printSourceMac(const uint8_t* source_mac) {
+    for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+        if (i > 0U) {
+            Serial.print(':');
+        }
+        if (source_mac == 0) {
+            printMacByte(0);
+        } else {
+            printMacByte(source_mac[i]);
+        }
     }
 }
 
@@ -43,7 +64,7 @@ bool EspNowTransportDriver::begin() {
     initialized_ = false;
     active_espnow_transport_driver = 0;
 
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_AP_STA);
 
     if (esp_now_init() != ESP_OK) {
         initialized_ = false;
@@ -214,6 +235,13 @@ void EspNowTransportDriver::recordReceiveCallback(
     const uint8_t* source_mac,
     const uint8_t* data,
     int data_len) {
+    Serial.println("Cyber32 ESP-NOW RX");
+    Serial.print("Source MAC: ");
+    printSourceMac(source_mac);
+    Serial.println();
+    Serial.print("Length: ");
+    Serial.println(data_len);
+
     callback_received_ = true;
     if (data_len <= 0) {
         last_received_length_ = 0;
