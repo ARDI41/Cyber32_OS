@@ -270,6 +270,104 @@ bool Cyber32Api::getNodeCapabilities(
     return out_capabilities[0].ok;
 }
 
+bool Cyber32Api::getCapabilityList(ApiCapabilityList& out_response) {
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.count = 0;
+    return true;
+}
+
+bool Cyber32Api::getCapabilitySummary(
+    uint8_t capability_index,
+    ApiCapabilitySummary& out_response) {
+    ApiCapabilityList capability_list;
+    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "capability_not_found";
+        return false;
+    }
+
+    out_response = capability_list.capabilities[capability_index];
+    return out_response.ok;
+}
+
+bool Cyber32Api::getCapabilityIdentity(
+    uint8_t capability_index,
+    ApiCapabilityIdentity& out_response) {
+    ApiCapabilityList capability_list;
+    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "capability_not_found";
+        out_response.capability_id = 0;
+        out_response.friendly_name = 0;
+        out_response.category = 0;
+        out_response.value_type = PayloadValueType::NONE;
+        out_response.unit = 0;
+        return false;
+    }
+
+    out_response = capability_list.capabilities[capability_index].identity;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getCapabilityValue(
+    uint8_t capability_index,
+    ApiCapabilityValue& out_response) {
+    ApiCapabilityList capability_list;
+    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "capability_not_found";
+        out_response.value_type = PayloadValueType::NONE;
+        out_response.value_float = 0.0F;
+        out_response.value_int = 0;
+        out_response.value_bool = false;
+        out_response.unit = 0;
+        out_response.timestamp_ms = 0;
+        return false;
+    }
+
+    out_response = capability_list.capabilities[capability_index].value;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getCapabilityAvailability(
+    uint8_t capability_index,
+    ApiCapabilityAvailability& out_response) {
+    ApiCapabilityList capability_list;
+    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "capability_not_found";
+        out_response.available = Availability::UNAVAILABLE;
+        out_response.stale = StaleState::STALE;
+        out_response.last_update_ms = 0;
+        out_response.has_provider = false;
+        return false;
+    }
+
+    out_response = capability_list.capabilities[capability_index].availability;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getCapabilityProviderInfo(
+    uint8_t capability_index,
+    ApiCapabilityProviderInfo& out_response) {
+    ApiCapabilityList capability_list;
+    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "capability_not_found";
+        out_response.active_provider_id = 0;
+        out_response.provider_type = CapabilityProviderType::UNKNOWN;
+        out_response.provider_status = CapabilityProviderStatus::UNKNOWN;
+        out_response.owner_node_id = 0;
+        out_response.has_owner_node = false;
+        out_response.selected = false;
+        return false;
+    }
+
+    out_response = capability_list.capabilities[capability_index].provider;
+    return out_response.ok;
+}
+
 bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
     if (registry_ == 0) {
         fillUnavailableTemperatureState(out_state);

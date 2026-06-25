@@ -37,6 +37,12 @@ public:
         ApiNodeCapabilitySummary* out_capabilities,
         uint8_t max_count,
         uint8_t& out_count);
+    bool getCapabilityList(ApiCapabilityList& out_response);
+    bool getCapabilitySummary(uint8_t capability_index, ApiCapabilitySummary& out_response);
+    bool getCapabilityIdentity(uint8_t capability_index, ApiCapabilityIdentity& out_response);
+    bool getCapabilityValue(uint8_t capability_index, ApiCapabilityValue& out_response);
+    bool getCapabilityAvailability(uint8_t capability_index, ApiCapabilityAvailability& out_response);
+    bool getCapabilityProviderInfo(uint8_t capability_index, ApiCapabilityProviderInfo& out_response);
     bool getTemperatureState(ApiCapabilityState& out_state);
     bool getDistanceState(ApiCapabilityState& out_state);
     bool getServoPositionState(ApiCapabilityState& out_state);
