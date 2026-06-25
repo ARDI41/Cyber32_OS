@@ -963,6 +963,68 @@ bool VerticalSliceValidation::validateApiState() {
         return fail("api_system_firmware_error_invalid");
     }
 
+    ApiSystemRuntime runtime_status;
+    if (!api_.getSystemRuntime(runtime_status)) {
+        return fail("api_system_runtime_failed");
+    }
+    if (!runtime_status.ok) {
+        return fail("api_system_runtime_not_ok");
+    }
+    if (!isSameText(runtime_status.error_code, "none")) {
+        return fail("api_system_runtime_error_invalid");
+    }
+    if (runtime_status.runtime_state != runtime_.state()) {
+        return fail("api_system_runtime_state_invalid");
+    }
+
+    ApiSystemModes modes;
+    if (!api_.getSystemModes(modes)) {
+        return fail("api_system_modes_failed");
+    }
+    if (!modes.ok) {
+        return fail("api_system_modes_not_ok");
+    }
+    if (!isSameText(modes.error_code, "none")) {
+        return fail("api_system_modes_error_invalid");
+    }
+
+    ApiSystemMemory memory;
+    if (!api_.getSystemMemory(memory)) {
+        return fail("api_system_memory_failed");
+    }
+    if (!memory.ok) {
+        return fail("api_system_memory_not_ok");
+    }
+    if (!isSameText(memory.error_code, "none")) {
+        return fail("api_system_memory_error_invalid");
+    }
+
+    ApiSystemSummary summary;
+    if (!api_.getSystemSummary(summary)) {
+        return fail("api_system_summary_failed");
+    }
+    if (!summary.ok) {
+        return fail("api_system_summary_not_ok");
+    }
+    if (!isSameText(summary.error_code, "none")) {
+        return fail("api_system_summary_error_invalid");
+    }
+    if (!summary.identity.ok) {
+        return fail("api_system_summary_identity_not_ok");
+    }
+    if (!summary.firmware.ok) {
+        return fail("api_system_summary_firmware_not_ok");
+    }
+    if (!summary.runtime.ok) {
+        return fail("api_system_summary_runtime_not_ok");
+    }
+    if (!summary.modes.ok) {
+        return fail("api_system_summary_modes_not_ok");
+    }
+    if (!summary.memory.ok) {
+        return fail("api_system_summary_memory_not_ok");
+    }
+
     ApiCapabilityState state;
     if (!api_.getTemperatureState(state)) {
         return fail("api_temperature_failed");

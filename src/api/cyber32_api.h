@@ -21,6 +21,10 @@ public:
     bool getSystemStatus(ApiSystemStatus& out_status);
     bool getSystemIdentity(ApiSystemIdentity& out_response);
     bool getSystemFirmware(ApiSystemFirmware& out_response);
+    bool getSystemRuntime(ApiSystemRuntime& out_response);
+    bool getSystemModes(ApiSystemModes& out_response);
+    bool getSystemMemory(ApiSystemMemory& out_response);
+    bool getSystemSummary(ApiSystemSummary& out_response);
     bool getTemperatureState(ApiCapabilityState& out_state);
     bool getDistanceState(ApiCapabilityState& out_state);
     bool getServoPositionState(ApiCapabilityState& out_state);

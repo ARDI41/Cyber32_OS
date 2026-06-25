@@ -83,6 +83,65 @@ bool Cyber32Api::getSystemFirmware(ApiSystemFirmware& out_response) {
     return true;
 }
 
+bool Cyber32Api::getSystemRuntime(ApiSystemRuntime& out_response) {
+    if (runtime_ == 0) {
+        out_response.ok = false;
+        out_response.error_code = "runtime_not_attached";
+        out_response.runtime_state = RuntimeState::ERROR_STATE;
+        out_response.uptime_ms = 0;
+        out_response.safe_mode = false;
+        out_response.ready = false;
+        out_response.running = false;
+        return false;
+    }
+
+    const RuntimeState runtime_state = runtime_->state();
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.runtime_state = runtime_state;
+    out_response.uptime_ms = 0;
+    out_response.safe_mode = runtime_->isSafeMode();
+    out_response.ready =
+        runtime_state == RuntimeState::READY || runtime_state == RuntimeState::RUNNING;
+    out_response.running = runtime_state == RuntimeState::RUNNING;
+    return true;
+}
+
+bool Cyber32Api::getSystemModes(ApiSystemModes& out_response) {
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.setup_mode = false;
+    out_response.developer_mode = true;
+    out_response.local_mode = true;
+    out_response.remote_mode = false;
+    return true;
+}
+
+bool Cyber32Api::getSystemMemory(ApiSystemMemory& out_response) {
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.free_heap = 0;
+    out_response.minimum_free_heap = 0;
+    out_response.registry_capacity_summary = "not_available";
+    return true;
+}
+
+bool Cyber32Api::getSystemSummary(ApiSystemSummary& out_response) {
+    if (!getSystemIdentity(out_response.identity) ||
+        !getSystemFirmware(out_response.firmware) ||
+        !getSystemRuntime(out_response.runtime) ||
+        !getSystemModes(out_response.modes) ||
+        !getSystemMemory(out_response.memory)) {
+        out_response.ok = false;
+        out_response.error_code = "system_summary_child_failed";
+        return false;
+    }
+
+    out_response.ok = true;
+    out_response.error_code = "none";
+    return true;
+}
+
 bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
     if (registry_ == 0) {
         fillUnavailableTemperatureState(out_state);
