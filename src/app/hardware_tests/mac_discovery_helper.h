@@ -12,6 +12,7 @@ public:
     const uint8_t* macAddress() const;
     bool hasMacAddress() const;
     void printBaseNodeMacToSerial() const;
+    void printBaseNodeStaAndApMacToSerial() const;
 
 private:
     uint8_t mac_address_[WIRELESS_MAC_ADDRESS_SIZE];

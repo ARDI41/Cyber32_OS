@@ -75,7 +75,6 @@ void setup() {
     // Temporary hardware-test MAC discovery for first ESP-NOW base-node setup.
     Cyber32::MacDiscoveryHelper macDiscoveryHelper;
     macDiscoveryHelper.begin();
-    macDiscoveryHelper.printBaseNodeMacToSerial();
 
     servo1.setPeriodHertz(50);
     servo1.attach(SERVO_PIN, 500, 2400);
@@ -84,6 +83,7 @@ void setup() {
     // Temporary hardware-test AP+STA channel alignment for ESP-NOW receive visibility.
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(ssid, password, TEMP_ESPNOW_RX_TEST_CHANNEL);
+    macDiscoveryHelper.printBaseNodeStaAndApMacToSerial();
 
     Serial.println("WiFi AP Started");
     Serial.print("Cyber32 WiFi channel: ");

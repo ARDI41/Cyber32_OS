@@ -62,6 +62,27 @@ bool Cyber32Api::getSystemStatus(ApiSystemStatus& out_status) {
     return true;
 }
 
+bool Cyber32Api::getSystemIdentity(ApiSystemIdentity& out_response) {
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.core_uuid = "cyber32-core-dev";
+    out_response.friendly_name = "Cyber32 Core";
+    out_response.owner_state = "unprovisioned";
+    out_response.provisioning_state = "development";
+    out_response.pairing_state = "manual";
+    return true;
+}
+
+bool Cyber32Api::getSystemFirmware(ApiSystemFirmware& out_response) {
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.firmware_version = "dev";
+    out_response.build_version = "dev";
+    out_response.hardware_revision = "unknown";
+    out_response.protocol_version = "1";
+    return true;
+}
+
 bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
     if (registry_ == 0) {
         fillUnavailableTemperatureState(out_state);

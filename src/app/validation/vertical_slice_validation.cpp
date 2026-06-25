@@ -941,6 +941,28 @@ bool VerticalSliceValidation::validateLogicState() {
 }
 
 bool VerticalSliceValidation::validateApiState() {
+    ApiSystemIdentity identity;
+    if (!api_.getSystemIdentity(identity)) {
+        return fail("api_system_identity_failed");
+    }
+    if (!identity.ok) {
+        return fail("api_system_identity_not_ok");
+    }
+    if (!isSameText(identity.error_code, "none")) {
+        return fail("api_system_identity_error_invalid");
+    }
+
+    ApiSystemFirmware firmware;
+    if (!api_.getSystemFirmware(firmware)) {
+        return fail("api_system_firmware_failed");
+    }
+    if (!firmware.ok) {
+        return fail("api_system_firmware_not_ok");
+    }
+    if (!isSameText(firmware.error_code, "none")) {
+        return fail("api_system_firmware_error_invalid");
+    }
+
     ApiCapabilityState state;
     if (!api_.getTemperatureState(state)) {
         return fail("api_temperature_failed");

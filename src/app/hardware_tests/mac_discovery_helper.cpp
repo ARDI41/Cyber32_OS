@@ -14,6 +14,15 @@ void printMacByte(uint8_t value) {
     Serial.print(value, HEX);
 }
 
+void printMacAddress(const uint8_t mac_address[WIRELESS_MAC_ADDRESS_SIZE]) {
+    for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+        if (i > 0U) {
+            Serial.print(':');
+        }
+        printMacByte(mac_address[i]);
+    }
+}
+
 }  // namespace
 
 MacDiscoveryHelper::MacDiscoveryHelper()
@@ -49,14 +58,22 @@ bool MacDiscoveryHelper::hasMacAddress() const {
 
 void MacDiscoveryHelper::printBaseNodeMacToSerial() const {
     Serial.print("Cyber32 Base Node MAC: ");
+    printMacAddress(mac_address_);
+    Serial.println();
+}
 
-    for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
-        if (i > 0U) {
-            Serial.print(':');
-        }
-        printMacByte(mac_address_[i]);
+void MacDiscoveryHelper::printBaseNodeStaAndApMacToSerial() const {
+    uint8_t ap_mac[WIRELESS_MAC_ADDRESS_SIZE];
+    if (WiFi.softAPmacAddress(ap_mac) == 0) {
+        clearWirelessMacAddress(ap_mac);
     }
 
+    Serial.print("Cyber32 Base Node STA MAC: ");
+    printMacAddress(mac_address_);
+    Serial.println();
+
+    Serial.print("Cyber32 Base Node AP MAC: ");
+    printMacAddress(ap_mac);
     Serial.println();
 }
 

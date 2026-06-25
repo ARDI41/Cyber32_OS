@@ -1,5 +1,7 @@
 #include "espnow_transport_driver.h"
 
+#include "../../app/hardware_tests/sensor_packet_decode_debug.h"
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -241,6 +243,7 @@ void EspNowTransportDriver::recordReceiveCallback(
     Serial.println();
     Serial.print("Length: ");
     Serial.println(data_len);
+    printSensorPacketEnvelopeDebug(source_mac, data, data_len);
 
     callback_received_ = true;
     if (data_len <= 0) {

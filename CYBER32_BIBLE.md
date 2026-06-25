@@ -40,7 +40,7 @@ This Bible consolidates the current Cyber32 documentation set, including:
 - `ACTUATOR_SAFETY_POLICY.md`
 - `SAFE_MODE_ARCHITECTURE_PLAN.md`
 - `MOBILE_STUDIO_VISION.md`
-- all `MILESTONE_*` plans, audits, and roadmaps through Milestone 9.0
+- all `MILESTONE_*` plans, audits, and roadmaps through Milestone 9.3
 
 If this document appears to conflict with a more detailed phase document, the detailed phase document is the local implementation source, and this Bible should be updated to reflect it.
 
@@ -105,6 +105,856 @@ CAP_* capability IDs
 ```
 
 Logic, API clients, Dashboard, Mobile Studio, and future AI tools must bind to capability IDs, not module names, device names, transport names, provider IDs, pin numbers, node IDs, or cloud endpoint names.
+
+## Cyber32 Foundation Principles
+
+Cyber32 is not merely a Home Automation platform, Robot OS, IoT platform, or Smart Home controller.
+
+Cyber32 is a Universal Capability Platform.
+
+Its purpose is to create a capability-based operating system capable of controlling any physical or virtual system through stable capability contracts.
+
+The foundation is:
+
+```text
+Hardware may change.
+Drivers may change.
+Wireless transports may change.
+Cloud may change.
+UI may change.
+AI may change.
+
+Capability contracts remain stable.
+Logic remains capability-first forever.
+```
+
+### Capability First
+
+Capabilities are the stable contract between the physical world and Cyber32 behavior.
+
+This exists so hardware can be replaced without rewriting Logic, UI, automations, dashboards, Mini App flows, cloud integrations, or AI-generated projects.
+
+### API First
+
+Every UI and external client must communicate through the Cyber32 API.
+
+This exists so Dev Panel, Mini App, Mission Control, Dashboard, Cloud, Marketplace assets, and future tools share one bounded access model instead of creating fragile direct hardware paths.
+
+### Core First
+
+Core is the brain of the Cyber32 ecosystem.
+
+This exists so Registry, Runtime, Services, Logic, API, Device Management, OTA, diagnostics, and future Cloud bridge remain centralized, auditable, and safe.
+
+### Local First
+
+Cyber32 must work locally without cloud services.
+
+This exists so homes, robots, labs, schools, farms, and field devices keep functioning when internet access is unavailable or intentionally disabled.
+
+### Documentation Before Implementation
+
+Architecture decisions must be documented before implementation.
+
+This exists so milestones remain intentional, future AI sessions inherit context, and contributors do not accidentally turn temporary hardware-test paths into permanent architecture.
+
+### Simulation Before Hardware
+
+Simulated slices validate architecture before real hardware is introduced.
+
+This exists so Registry contracts, Runtime behavior, Services, Logic, API, safety, diagnostics, and provider selection are proven before hardware noise enters the system.
+
+### Safety Before Features
+
+Safety comes before convenience, speed, novelty, or demo value.
+
+This exists because Cyber32 can control motors, relays, robots, cameras, alarms, and future actuators. Unsafe commands must fail safe.
+
+### Simple Nodes, Intelligent Core
+
+Sensor Nodes and Module Nodes should stay simple.
+
+This exists so nodes can be cheap, bounded, reliable capability providers while Core owns policy, identity, orchestration, diagnostics, OTA strategy, and future cloud bridging.
+
+## Cyber32 Identity
+
+Every Cyber32 Core owns a permanent identity.
+
+Core identity is the root identity for the ecosystem.
+
+Core identity includes:
+
+- Core UUID
+- Friendly Name
+- Owner
+- Hardware Revision
+- Firmware Version
+- Pairing State
+- Provisioning State
+- License State future
+- Manufacturing Information future
+- Cloud Identity future
+
+Nodes also own identities, but node identity never replaces Core identity.
+
+Node identities describe capability providers attached to, paired with, or trusted by a Core. Core identity is the anchor for Projects, permissions, Mini App pairing, cloud bridging, OTA policy, diagnostics, and future marketplace licensing.
+
+## Projects
+
+Cyber32 organizes systems as Projects.
+
+A Project represents an entire installation.
+
+Example hierarchy:
+
+```text
+Project
+-> Rooms / Zones
+-> Nodes
+-> Capabilities
+-> Logic
+-> Dashboards
+-> Templates
+```
+
+Projects remain capability-first.
+
+Projects may later support:
+
+- Export
+- Import
+- Backup
+- Restore
+- Version History
+- Sharing
+
+Projects must describe stable capabilities and desired behavior rather than fragile hardware assumptions wherever possible.
+
+## Custom Project Pages and App Builder
+
+Cyber32 Mini App and future Mission Control must allow users to create custom project pages.
+
+A custom project page is a user-created view inside a Project.
+
+Examples:
+
+- Greenhouse Overview
+- Robot Rover Control
+- Garage Security
+- Weather Station
+- Pet Feeder
+- Workshop Dashboard
+- Energy Monitor
+
+Custom pages may contain:
+
+- capability value cards
+- buttons
+- sliders
+- charts
+- device map widgets
+- camera view widgets
+- motor control widgets
+- logic status widgets
+- notification widgets
+- project notes
+- safety status blocks
+
+Custom pages are UI composition only.
+
+They must never talk directly to Drivers, Devices, Modules, HAL, Registry arrays, or wireless internals.
+
+Correct flow:
+
+```text
+Custom Page Widget -> Cyber32 API -> Services / Runtime / Logic -> Capability Router -> Provider
+```
+
+Forbidden flows:
+
+```text
+Custom Page Widget -> Driver
+Custom Page Widget -> Module
+Custom Page Widget -> HAL
+```
+
+Custom pages must bind to `CAP_*` capability IDs.
+
+Examples:
+
+```text
+Temperature Card -> CAP_TEMPERATURE
+Servo Slider -> CAP_SERVO
+Motor Stop Button -> CAP_DRIVE or CAP_MOTOR_CONTROL
+Camera View -> CAP_CAMERA
+Speaker Button -> CAP_AUDIO_OUTPUT
+```
+
+Projects must be easy to follow.
+
+Each Project may contain:
+
+- overview page
+- device map
+- capability list
+- logic rules
+- custom pages
+- logs
+- diagnostics
+- timeline
+- notifications
+- project notes
+- templates used
+- safety status
+
+### Mini App Builder
+
+Mini App Builder is a future no-code composition tool that allows a user to create simple custom views without programming.
+
+Builder modes:
+
+- Add Page
+- Add Widget
+- Bind Widget to Capability
+- Choose Layout
+- Save as Template
+- Share Template later
+
+Widget types:
+
+- Value Card
+- Toggle Button
+- Slider
+- Emergency Stop Button
+- Chart
+- Camera Feed
+- Audio Button
+- Device Map
+- Logic Rule Status
+- Notification List
+- Timeline
+- Text / Notes Block
+- Project Checklist
+
+Safety rule:
+
+Any widget that can trigger actuator behavior must go through API command policy and Services.
+
+Motor widgets must include visible stop or safe controls where appropriate.
+
+Emergency Stop must be globally available in Motor Lab, Robot Control, and any custom page that controls motion.
+
+Custom pages are not plugins with privileged access.
+
+They are declarative UI layouts stored as Project configuration.
+
+Future storage may support:
+
+- export
+- import
+- backup
+- restore
+- share
+- marketplace distribution
+
+All shared custom pages must remain capability-based and API-first.
+
+## Drag & Drop Logic Builder and Template Scripts
+
+Cyber32 Mini App, Mission Control, and future Dashboard must support drag-and-drop logic building.
+
+Logic Builder must be capability-first and API-first.
+
+Users should be able to build automations visually using blocks:
+
+- Trigger Block
+- Condition Block
+- Action Block
+- Safety Block
+- Delay / Timer Block
+- Notification Block
+- Project Block
+
+Examples:
+
+```text
+WHEN CAP_MOTION == true
+THEN CAP_AUDIO_OUTPUT = beep
+
+WHEN CAP_DISTANCE < 20cm
+THEN CAP_MOTOR_CONTROL = stop
+
+WHEN CAP_TEMPERATURE > 30
+THEN CAP_FAN = on
+```
+
+All drag-and-drop blocks must compile into deterministic Cyber32 logic rules.
+
+They must not become free-form scripts that bypass Runtime, Services, Registry, API, or safety policy.
+
+### Template Scripts
+
+Template Scripts are prebuilt capability-first logic recipes included with Cyber32.
+
+Template Scripts are project starters, not privileged code.
+
+### Temperature Monitor Template
+
+Required capabilities:
+
+- `CAP_TEMPERATURE`
+
+Optional capabilities:
+
+- `CAP_DISPLAY`
+- `CAP_NOTIFICATION`
+
+Rules:
+
+```text
+IF CAP_TEMPERATURE > threshold THEN notify
+IF CAP_TEMPERATURE unavailable THEN show warning
+```
+
+### Robot Rover Template
+
+Required capabilities:
+
+- `CAP_DRIVE` or `CAP_MOTOR_CONTROL`
+- `CAP_DISTANCE`
+
+Optional capabilities:
+
+- `CAP_CAMERA`
+- `CAP_AUDIO_OUTPUT`
+
+Rules:
+
+- `IF CAP_DISTANCE < safe_distance THEN stop`
+- Emergency Stop always available
+- manual drive controls must go through Services
+
+### Smart Guard Template
+
+Required capabilities:
+
+- `CAP_MOTION`
+
+Optional capabilities:
+
+- `CAP_CAMERA`
+- `CAP_AUDIO_OUTPUT`
+- `CAP_NOTIFICATION`
+
+Rules:
+
+```text
+IF CAP_MOTION == true THEN camera capture
+IF CAP_MOTION == true THEN audio alert
+IF CAP_MOTION == true THEN notification
+```
+
+### CNC / Motion Template
+
+Required capabilities:
+
+- future `CAP_AXIS_X`
+- future `CAP_AXIS_Y`
+- Emergency Stop
+
+Optional capabilities:
+
+- future `CAP_AXIS_Z`
+
+Rules:
+
+- must run only in safe bounded mode
+- no unvalidated G-code execution in early architecture
+- movement commands must go through Services and safety policy
+
+### Greenhouse Template
+
+Required capabilities:
+
+- `CAP_TEMPERATURE`
+
+Optional capabilities:
+
+- `CAP_HUMIDITY`
+- `CAP_LIGHT`
+- `CAP_WATER_LEVEL`
+- `CAP_RELAY_CONTROL`
+
+Rules:
+
+```text
+IF temperature too high THEN fan on
+IF soil/moisture low THEN pump on only within safe limits
+```
+
+### Pet Feeder Template
+
+Required capabilities:
+
+- `CAP_SERVO` or `CAP_MOTOR_CONTROL`
+
+Optional capabilities:
+
+- `CAP_CAMERA`
+- `CAP_WEIGHT`
+- `CAP_NOTIFICATION`
+
+Rules:
+
+- scheduled feed action
+- jam detection future
+- manual feed button through Services
+
+### Energy Monitor Template
+
+Required capabilities:
+
+- future `CAP_POWER`
+
+Optional capabilities:
+
+- `CAP_VOLTAGE`
+- `CAP_CURRENT`
+- `CAP_RELAY_CONTROL`
+
+Rules:
+
+- show usage
+- notify abnormal usage
+- actuator control only through Services
+
+### Weather Station Template
+
+Required capabilities:
+
+- `CAP_TEMPERATURE`
+
+Optional capabilities:
+
+- `CAP_HUMIDITY`
+- `CAP_PRESSURE`
+- `CAP_WIND`
+- `CAP_RAIN`
+
+Rules:
+
+- display current values
+- record timeline
+- notify threshold changes
+
+Template Script rules:
+
+- templates are project starters, not privileged code
+- templates must bind to `CAP_*` IDs
+- templates must declare required and optional capabilities
+- templates must declare safety requirements
+- templates must declare UI widgets
+- templates may create custom project pages
+- templates may create logic rules
+- templates may create notifications
+- templates may create diagnostics views
+- templates must never directly call Drivers, Devices, HAL, Registry arrays, or transport internals
+
+## Permission Model
+
+Cyber32 will use a role-based permission model.
+
+Future roles include:
+
+- Owner
+- Administrator
+- Developer
+- Family
+- Operator
+- Guest
+- Read Only
+
+Permission checks occur above the API and never inside Drivers or Devices.
+
+Drivers and Devices must remain hardware-facing implementation layers. They do not know users, roles, ownership, or UI permissions.
+
+Permission policy belongs in API-facing, Service-facing, or future identity layers that can make decisions before commands or state-changing operations reach lower layers.
+
+## Notification Engine
+
+Cyber32 will include a Notification Engine.
+
+Future notifications include:
+
+- Battery Low
+- Node Offline
+- Motion Detected
+- Temperature Alert
+- OTA Finished
+- System Warning
+- Safety Warning
+
+Notifications are generated by Services and Runtime events.
+
+UI only displays notifications. UI must not become the source of truth for notification state, safety state, node health, or provider health.
+
+## Plugin Architecture
+
+Cyber32 will support plugins in future architecture phases.
+
+Future plugin types include:
+
+- Logic Plugins
+- Dashboard Plugins
+- Visualization Plugins
+- AI Plugins
+- Project Templates
+- Future Driver Packages
+
+Plugins must never bypass the API or capability contracts.
+
+Plugin packages may extend behavior, visualization, templates, drivers, AI assistance, or project workflows, but they must preserve the Core-first, API-first, capability-first architecture.
+
+## Mission Control Vision
+
+Mission Control is the future central visual control surface for Cyber32.
+
+Mission Control is not a privileged backdoor. It is a UI client that communicates only through the Cyber32 API.
+
+Future Mission Control modules include:
+
+- System Overview
+- Live Device Map
+- Capability Health
+- Diagnostics
+- Logic Builder
+- Automation Monitor
+- Robot Control
+- Security Center
+- Energy Monitor
+- Project Explorer
+
+Mission Control must remain capability-first and provider-blind unless it is explicitly showing diagnostics through API-approved diagnostic views.
+
+## Architecture Layer Clarification
+
+Cyber32 now recognizes two UI layers.
+
+Developer Layer:
+
+- Dev Panel
+- Test Lab
+- Motor Lab
+- Diagnostics
+
+Customer Layer:
+
+- Mini App
+- Mission Control
+- Dashboard
+- Project Templates
+
+Both layers use exactly the same Cyber32 API.
+
+Neither layer may call Drivers, Devices, Modules, HAL, Registry arrays, or transport internals directly.
+
+## Future Marketplace Vision
+
+Cyber32 Marketplace may distribute:
+
+- Drivers
+- Logic Templates
+- Projects
+- Dashboards
+- AI Assistants
+- Visual Components
+- Plugin Packages
+- Educational Content
+
+Marketplace assets never communicate directly with hardware.
+
+Everything goes through the Cyber32 API and stable capability contracts.
+
+## Recent Architecture Decisions
+
+These decisions are authoritative for future work. If they appear to narrow or clarify older text, use this section as the current architecture source rather than deleting milestone history.
+
+### Cyber32 Ecosystem
+
+Cyber32 is an ecosystem made of simple capability providers around a capable Core.
+
+Ecosystem parts:
+
+- Core
+- Sensor Nodes
+- Module Nodes
+- Dev Panel
+- Mini App
+- future Cloud
+- future Dashboard
+- future Marketplace
+
+Core is the brain of the system.
+
+Core owns:
+
+- Registry
+- Runtime
+- Services
+- Logic
+- API
+- Device Management
+- OTA
+- future Cloud bridge
+
+Sensor Nodes and Module Nodes must stay simple capability providers. They may sense, report, announce, and eventually execute bounded commands, but they must not become a second Core, own system policy, run global Logic, or expose privileged UI paths.
+
+### Core Modes
+
+Core supports these architecture modes:
+
+- Setup Mode
+- Developer Mode
+- Local Mode
+- Remote Mode
+
+Setup Mode is used when the Core needs first-time network setup or recovery access.
+
+Developer Mode enables hardware-test helpers, Test Lab workflows, diagnostics, replay, simulation, and safe command testing.
+
+Local Mode is the normal LAN-first operating mode where UI clients talk to Core over the local Cyber32 API.
+
+Remote Mode is future cloud-assisted access. Core must initiate outbound cloud connections; Cyber32 must not require router port forwarding.
+
+### API Principle
+
+All UI clients communicate only through the Cyber32 API.
+
+This applies to:
+
+- Dev Panel
+- Mini App
+- future Dashboard
+- future Cloud
+- future Marketplace clients
+
+Correct flow:
+
+```text
+UI -> API -> Runtime / Services / Logic -> Capability Router -> Provider
+```
+
+Forbidden flows:
+
+```text
+UI -> Driver
+UI -> Module
+UI -> HAL
+```
+
+UI clients must never access Drivers, Devices, Modules, HAL, or Registry arrays directly. The API is the only UI-facing contract.
+
+### Capability-First Rule
+
+Cyber32 logic must depend on capability IDs, not hardware names.
+
+Use:
+
+```text
+CAP_TEMPERATURE
+CAP_SERVO
+CAP_DISTANCE
+CAP_DRIVE
+```
+
+Do not bind Logic to:
+
+```text
+DS18B20
+DHT22
+ServoMotorDriver
+specific pins
+specific transport names
+```
+
+Hardware is replaceable. Capabilities are stable contracts.
+
+### Existing Hardware Context
+
+Current available test hardware includes:
+
+- Cyber32 Core ESP32
+- Sensor Node ESP32
+- ESP32-CAM
+- Robot Car Kit
+- ChatGPT / AI Robot Kit
+- speaker
+- microphone
+- multiple sensors and modules
+
+This hardware is useful for validation, demos, and future templates, but it must not weaken capability-first boundaries.
+
+## Dev Panel, Mini App and Test Lab Strategy
+
+### Dev Panel
+
+Dev Panel runs on Cyber32 Core as an embedded web interface.
+
+Dev Panel is for development and debugging. It is accessed through local IP or the Core setup AP.
+
+Dev Panel must use Cyber32 API only. It must never call Drivers, Devices, Modules, HAL, or Registry arrays directly.
+
+Dev Panel includes:
+
+- System
+- Devices
+- Capabilities
+- Logs
+- Diagnostics
+- Test Lab
+- OTA
+
+### Mini App
+
+Mini App is the future customer and developer mobile app.
+
+Mini App is used for:
+
+- setup
+- local control
+- remote view
+- testing
+- future logic building
+
+Initial connection flow:
+
+```text
+user powers Core
+-> Core starts Setup Mode
+-> app finds Core
+-> user selects home WiFi
+-> Core joins local network
+-> app connects locally
+```
+
+Future remote mode goes through Cyber32 Cloud.
+
+Remote mode rule:
+
+```text
+Core -> outbound cloud connection -> Cloud -> Mini App
+```
+
+No router port forwarding is required.
+
+### Test Lab
+
+Test Lab is an official Cyber32 architecture concept.
+
+Test Lab must support:
+
+- inject capability values
+- simulate sensors
+- simulate motion
+- simulate distance
+- simulate low battery
+- simulate weak signal
+- simulate lost node
+- replay packets
+- trigger discovery
+- clear Registry in Developer Mode
+- test motor commands safely
+
+Test Lab is a development surface over API and Services. It must not bypass safety, Runtime state, command policy, Registry APIs, or capability-first rules.
+
+### Motor Lab
+
+Motor Lab is the Test Lab area for actuator and motion testing.
+
+Motor Lab includes:
+
+- Servo test
+- DC motor test
+- Stepper test
+
+Emergency Stop is required for motor testing.
+
+Motor Lab must preserve actuator safety policy. It may help validate commands, bounds, and safe states, but it must not provide an unsafe shortcut around Services or Runtime state.
+
+### Minimal Logic Builder
+
+Minimal Logic Builder is a future no-code IF / THEN logic system.
+
+The model is:
+
+```text
+trigger -> condition -> action
+```
+
+Logic Builder is capability-based only.
+
+Examples:
+
+```text
+IF CAP_MOTION == true THEN CAP_AUDIO_OUTPUT = beep
+IF CAP_DISTANCE < 20cm THEN CAP_DRIVE = stop
+IF CAP_TEMPERATURE > 30 THEN CAP_FAN = on
+```
+
+Logic Builder must not expose Drivers, Modules, HAL, pins, transport IDs, or provider IDs as logic dependencies.
+
+### Fun and Wow Layer
+
+Cyber32 may include a future user experience layer that makes learning, testing, and building feel alive without weakening architecture.
+
+Future concepts:
+
+- Mission Control
+- demo missions
+- achievements
+- project templates
+- robot rover demo
+- smart guard demo
+- first node connected
+- first automation
+- first robot alive
+
+This layer is UI and experience only. It must use the Cyber32 API and capability contracts.
+
+### Project Templates
+
+Future app templates may include:
+
+- Smart Greenhouse
+- Weather Station
+- Smart Guard
+- Robot Rover
+- Pet Feeder
+- Garage Monitor
+
+Templates configure capabilities, providers, safe defaults, diagnostics, and suggested UI views. Templates must not hard-code fragile hardware assumptions where capability contracts are available.
+
+## Implementation Impact
+
+Future Codex tasks, ChatGPT sessions, human contributions, and implementation milestones must follow this updated Bible.
+
+Implementation impact:
+
+- Core remains the system brain.
+- Sensor Nodes and Module Nodes remain simple capability providers.
+- Dev Panel, Mini App, Dashboard, Cloud, and Marketplace clients must use the Cyber32 API only.
+- UI must never call Drivers, Devices, Modules, HAL, or Registry arrays directly.
+- Test Lab and Motor Lab must preserve safety and capability-first boundaries.
+- Logic Builder must depend on `CAP_*` IDs only.
+- Cloud access must be Core-initiated outbound access, with no router port forwarding requirement.
+- Temporary hardware-test hooks must remain clearly marked and must not become production architecture by accident.
+- Future Dev Panel, Mini App, Mission Control, and Dashboard work must support Project-oriented UI structure.
+- UI screens should be designed so they can later become user-created custom pages.
+- Avoid hard-coded one-purpose screens where a reusable capability widget would be better.
+- Future UI and Logic Builder work must treat drag-and-drop blocks, Template Scripts, and custom pages as declarative Project configuration.
+- Drag-and-drop blocks, Template Scripts, and custom pages compile into API-safe, capability-first Cyber32 rules.
+- They are not arbitrary scripts with hardware access.
+- When a future task conflicts with older milestone text, this section and the Recent Architecture Decisions section are authoritative.
 
 ## AI Contributor Contract
 
@@ -904,7 +1754,7 @@ Current real ESP-NOW status:
 
 - real ESP-NOW driver skeleton exists
 - clean header boundary exists
-- ESP-NOW initialization uses `WiFi.mode(WIFI_STA)` and `esp_now_init()`
+- ESP-NOW initialization exists behind the driver boundary
 - receive callback is registered
 - callback metadata is captured:
   - `callback_received_`
@@ -915,6 +1765,7 @@ Current real ESP-NOW status:
 - transport adapter path supports simulated and real ESP-NOW drivers
 - WirelessService can process decoded ESP-NOW packets through `WirelessPacketTransportAdapter`
 - MAC-to-node identity enforcement exists in WirelessService
+- first real Sensor Firmware to Cyber32 OS Base Node ESP-NOW receive has been proven on hardware
 - simulated transport remains an active validation baseline
 
 ## Security Model
@@ -1274,6 +2125,244 @@ Wireless Security Diagnostics API.
 
 Added read-only API structs and methods for wireless security diagnostics by node ID, by index, and summary totals. Validated read-only behavior and confirmed normal capability reads remain unchanged.
 
+### Milestone 9.1
+
+First Real Wireless Node Preparation.
+
+Milestone 9.1 prepared the Cyber32 OS Base Node and Cyber32 Sensor Firmware path for the first real ESP-NOW `CAP_TEMPERATURE` hardware test.
+
+Completed phases:
+
+- Phase 1 Base Node Hardware Test Plan
+- Phase 2 Wireless Temperature Sender Plan
+- Phase 3 Real Node Test Checklist
+- Phase 4 Base Harness Skeleton Plan
+- Phase 5 Base Hardware Test Harness Skeleton
+- Phase 6 Wireless Temperature Sender Skeleton
+- Phase 7 MAC Setup Plan
+- Phase 8 First Real Packet Test Plan
+- Phase 9 MAC Discovery Helper Plan
+- Phase 10 MAC Discovery Helper
+- Phase 11 Base Node MAC Serial Print Helper
+
+Milestone 9.1 established the hardware-test scaffolding for:
+
+- Base Node ESP-NOW receive preparation
+- Sensor Firmware one-shot wireless temperature sender preparation
+- MAC discovery and manual pairing setup
+- first real packet test procedure
+- temporary serial visibility for Base Node MAC discovery
+
+Hardware MAC results:
+
+- Base Node MAC: `CC:DB:A7:9F:C3:D4`
+- Sender Node MAC: `AC:27:6E:A5:8C:68`
+
+Build status:
+
+- PlatformIO builds were verified locally by the user.
+- AI/Codex shell could not run `pio` because `pio` is not available on PATH in this environment.
+
+Milestone 9.1 remained hardware-test focused. It did not introduce Registry ingestion, provider updates, Logic integration, API exposure, Dashboard behavior, provisioning runtime, or NVS storage.
+
+### Milestone 9.2
+
+First Real Sensor Firmware ESP-NOW Receive.
+
+Confirmed the first real wireless hardware test between Cyber32 Sensor Firmware on ESP32-S3 and Cyber32 OS Base Node on ESP32.
+
+Sensor Firmware result:
+
+- packet validation OK
+- transport validation OK
+- send result: `SEND_OK`
+- ESP-NOW TX callback status: `SUCCESS`
+- peer MAC: `CC:DB:A7:9F:C3:D4`
+- channel: `1`
+
+Base Node result:
+
+- `Cyber32 Base Node MAC: CC:DB:A7:9F:C3:D4`
+- `Cyber32 WiFi channel: 1`
+- `Cyber32 ESP-NOW RX test started`
+- received packet visibility:
+
+```text
+Cyber32 ESP-NOW RX
+Source MAC: AC:27:6E:A5:8C:68
+Length: 60
+```
+
+What was proven:
+
+- Sensor Firmware can build, validate, and send a Cyber32 60-byte packet.
+- ESP-NOW TX callback confirms delivery success.
+- Cyber32 OS Base Node receives the packet through the ESP-NOW receive callback.
+- The first complete Sensor Node to Base Node wireless path is proven.
+
+Why it matters:
+
+- Real hardware communication between independent Cyber32 nodes is proven.
+- Sensor Firmware and Cyber32 OS are now connected over ESP-NOW.
+- The 60-byte Wireless Sensor Protocol v1.0 packet physically reaches the Base Node.
+- Next work can move from receive visibility to packet decode and provider ingestion.
+
+Temporary hardware-test changes:
+
+- Base Node uses a temporary ESP-NOW RX boot hook.
+- Base Node uses AP+STA mode.
+- Base Node SoftAP is fixed to channel `1`.
+- Sensor Firmware is fixed to channel `1` for the development test.
+- Static Base Node MAC is a development fallback only.
+- Production path remains plug-and-play provisioning.
+
+Boundaries:
+
+- No Registry update yet.
+- No Provider update yet.
+- No Logic, API, or Dashboard integration yet.
+- No WirelessService ingestion yet.
+- No provisioning runtime yet.
+- No NVS storage yet.
+- Current result is receive visibility only.
+
+Next recommended milestone:
+
+Milestone 9.3 - Decode incoming Sensor Firmware packet:
+
+- validate magic
+- validate protocol version
+- validate packet size
+- decode `node_id`
+- decode `capability_id`
+- decode value
+- print decoded `CAP_TEMPERATURE` payload
+- still do not update Registry or Provider yet
+
+## Milestone 9.3 - Decode Incoming Sensor Firmware Packet
+
+Result: SUCCESS.
+
+Milestone 9.3 proved that Cyber32 OS can decode the first real Sensor Firmware ESP-NOW packet at the hardware-test visibility layer.
+
+Confirmed real hardware decode:
+
+- Source MAC: `AC:27:6E:A5:8C:68`
+- Length: `60`
+- Magic: OK
+- Version: OK
+- Packet Type: `1`
+- Packet Size: `60`
+- Node ID: `1`
+- Sequence ID: `427`
+- Capability: `CAP_TEMPERATURE`
+- Payload Type: FLOAT
+- Payload Schema Version: `1`
+- Payload Available: `1`
+- Temperature: `23.50 C`
+- Checksum: OK
+- Timestamp: `1278204`
+- Error Code: `0`
+- Pairing Flags: `0`
+- Security Level: `0`
+
+Battery, battery voltage, signal, and diagnostics fields are currently placeholder/raw values until Sensor Firmware fills them with real measurements.
+
+What was proven:
+
+- Sensor Firmware sends a valid 60-byte Cyber32 Sensor Packet v1.0 payload over ESP-NOW.
+- Cyber32 OS Base Node receives the payload from the real sender MAC.
+- The temporary hardware-test decoder validates packet size, magic, protocol version, and checksum.
+- The decoder reads the real node ID, sequence ID, capability ID, payload type, and temperature value.
+- The packet reaches Cyber32 OS in a form suitable for the next discovery/provider-ingestion milestones.
+
+Boundaries:
+
+- No Registry update yet.
+- No Provider update yet.
+- No WirelessService ingestion yet.
+- No Logic or API integration yet.
+- No Dashboard, Dev Panel, or Mini App behavior yet.
+- Provider ingestion remains future work.
+
+Milestone 9.3 remains a hardware-test debug decode milestone only.
+
+## Sensor Model Clarification
+
+Cyber32 supports wired and wireless sensors through the same provider/capability model.
+
+Wired sensor:
+
+- `provider_type = WIRED`
+- local driver/device
+- no MAC address
+- no radio diagnostics
+
+Wireless sensor:
+
+- `provider_type = WIRELESS`
+- source MAC
+- `node_id`
+- `sequence_id`
+- battery/signal diagnostics
+- accepted/rejected packet diagnostics
+
+The stable UI and Logic contract remains capability-first. Wired and wireless sensors may differ in diagnostics and transport metadata, but both must eventually appear as capability providers.
+
+## Minimal App Readiness
+
+The Minimal App may now begin as a separate project, but it must use the Cyber32 API only.
+
+Initial app targets:
+
+- Node list
+- Sensor detail
+- Capability value card
+- Battery/signal card
+- Pairing request screen later
+- Diagnostics screen later
+
+Initial visible data model:
+
+- `node_id`
+- source MAC
+- `capability_id`
+- value
+- unit
+- provider status
+- last update
+- battery percent future
+- battery voltage future
+- signal/RSSI future
+- diagnostics/error status
+
+Rules:
+
+- App must not talk to Drivers.
+- App must not parse ESP-NOW packets.
+- App must not access Registry arrays.
+- App must use Cyber32 API only.
+- App must remain capability-first.
+
+Minimal App work should begin with API contract design or mock data if needed until discovery/provider APIs are ready.
+
+## Plug-And-Play Direction
+
+Manual MAC setup is development-only.
+
+Production plug-and-play should follow this direction:
+
+```text
+unknown node packet/announce
+-> Base creates pending discovery record
+-> API exposes pending sensor
+-> Minimal App shows "New sensor found"
+-> user accepts
+-> Base creates allowlist/trust/provider records
+```
+
+Plug-and-play must remain API-first and capability-first. The app must not parse wireless packets or directly create Registry array entries.
+
 ## Current Project Status
 
 Completed:
@@ -1282,19 +2371,28 @@ Completed:
 - Milestone 8.8 MAC-to-Node Enforcement
 - Milestone 8.9 Wireless Security Diagnostics
 - Milestone 9.0 Wireless Security Diagnostics API
+- Milestone 9.1 First Real Wireless Node Preparation
+- Milestone 9.2 First Real Sensor Firmware ESP-NOW Receive
+- Milestone 9.3 Decode Incoming Sensor Firmware Packet
 
 ## Current Project Snapshot
 
 Purpose: allow future AI sessions and contributors to immediately understand the current Cyber32 project status.
 
-Current Milestone: Milestone 9.0 Wireless Security Diagnostics API
+Current Milestone: Milestone 9.3 complete
 
-Current Build: pending local PlatformIO verification in this environment
+Current Build:
+
+- PlatformIO builds verified locally by the user
+- AI/Codex shell could not run `pio` because `pio` is not available on PATH in this environment
 
 Current Validation:
 
 - validation coverage added through Milestone 9.0
-- local `pio run` could not be executed because `pio` is not available on PATH
+- Milestone 9.1 hardware-test scaffolding completed
+- hardware receive visibility proven through Milestone 9.2
+- real Sensor Firmware packet debug decode proven through Milestone 9.3
+- AI/Codex shell build command remains unavailable until `pio` is on PATH
 
 Current Capability Slices:
 
@@ -1316,7 +2414,7 @@ Current ESP-NOW Status:
 
 - real ESP-NOW driver skeleton exists
 - `WiFi.h` and `esp_now.h` are isolated to `espnow_transport_driver.cpp`
-- ESP-NOW initialization is implemented with `WiFi.mode(WIFI_STA)` and `esp_now_init()`
+- ESP-NOW initialization is implemented behind `EspNowTransportDriver`
 - receive callback is registered
 - callback metadata is captured:
   - `callback_received_`
@@ -1329,6 +2427,12 @@ Current ESP-NOW Status:
 - WirelessService processes ESP-NOW adapter packets through the same policy pipeline as simulated packets
 - MAC-to-node enforcement exists
 - wireless security diagnostics and read-only diagnostics API exist
+- first real ESP-NOW receive from Sensor Firmware to Cyber32 OS Base Node is proven
+- real Sensor Firmware packet receive and debug decode are proven
+- current hardware-test receive packet length is `60`
+- decoded hardware-test packet: `CAP_TEMPERATURE`, node `1`, sequence `427`, temperature `23.50 C`, checksum OK
+- Base Node MAC: `CC:DB:A7:9F:C3:D4`
+- Sender Node MAC: `AC:27:6E:A5:8C:68`
 - simulated transport remains a validation baseline
 
 Status Estimate:
@@ -1350,7 +2454,7 @@ ESP-NOW Integration        100%
 Next Planned Step:
 
 ```text
-Milestone 9.1
+Milestone 9.4 / 9.5 - discovery and API readiness for Minimal App
 ```
 
 ## Known Remaining Gaps
@@ -1358,13 +2462,13 @@ Milestone 9.1
 Critical and important gaps still tracked across audits:
 
 - full production bootstrap in `src/main.cpp` is not wired
-- PlatformIO build has not been verified in this environment because `pio` is not on PATH
-- real wireless temperature node test pending
+- PlatformIO builds were verified locally by the user; AI/Codex shell cannot run `pio` because it is not on PATH
+- real ESP-NOW receive visibility and packet debug decode are proven; provider ingestion is pending
 - persistence for allowlist/pairing still future work
-- stronger cryptographic authentication still future work
+- current wireless security includes checksum, MAC-to-node, allowlist, trust, sequence, and diagnostics
+- future production security still needs stronger cryptographic authentication
 - real hardware drivers are not implemented
 - persistence/configuration model is incomplete
-- security minimum is still future work
 - EventBus remains minimal
 - complex payload schemas remain deferred
 
@@ -1393,12 +2497,12 @@ Stop and review architecture if any of these occur:
 
 Recommended order:
 
-1. Milestone 9.1
+1. Milestone 9.4 / 9.5 - discovery and API readiness for Minimal App
 2. verify PlatformIO build in an environment with `pio` available
-3. real wireless temperature node test
+3. ingest decoded packet through the planned wireless/provider path
 4. add production bootstrap path
-5. add real wired sensor providers
-6. add persistence/configuration
+5. add plug-and-play provisioning and persistence
+6. add real wired sensor providers
 7. add stronger wireless authentication beyond MAC identity and checksum
 8. expose Dashboard/Mobile Studio diagnostics through API transports
 9. consider real actuator hardware only after safety readiness audits
@@ -1409,14 +2513,16 @@ Recommended order:
 NEXT TARGET:
 
 ```text
-Milestone 9.1
+Milestone 9.4 / 9.5 - discovery and API readiness for Minimal App
 ```
 
 Recommendations:
 
-- use Milestone 9.0 diagnostics as the observable baseline for future wireless work
+- use the Milestone 9.3 hardware decode result as the baseline for discovery and provider-ingestion planning
 - keep API diagnostics read-only
 - keep Logic provider-blind, transport-blind, and diagnostics-blind
+- keep provider ingestion explicit and testable; Milestone 9.3 did not update Registry/provider state
+- design Minimal App screens around API contracts and capability/provider data
 - verify PlatformIO build in an environment where `pio` is available before marking the current source set production-ready
 - choose the next milestone from documented gaps rather than adding new behavior opportunistically
 
@@ -1444,3 +2550,69 @@ but Logic and API remain anchored to CAP_* capability contracts
 ```
 
 That is the Cyber32 architecture.
+
+## AI Philosophy
+
+AI is an assistant.
+
+AI never owns architecture.
+
+AI never bypasses safety.
+
+AI may:
+
+- generate capability logic
+- explain system behavior
+- build projects
+- recommend configurations
+- help write documentation
+- help produce validation plans
+- help create API-first UI flows
+
+AI must not:
+
+- replace Runtime
+- replace Registry
+- replace Services
+- replace Safety
+- bypass capability contracts
+- bypass API boundaries
+- silently change architecture
+- convert temporary hardware-test code into production behavior without an explicit milestone
+
+Cyber32 architecture remains deterministic.
+
+AI may assist Cyber32, but Cyber32 remains governed by documented architecture, bounded state, explicit validation, and safety-first execution.
+
+## Foundation Summary
+
+This Foundation Summary is authoritative for future architecture.
+
+Cyber32 is not:
+
+- hardware-first
+- module-first
+- dashboard-first
+- cloud-first
+- AI-first
+
+Cyber32 is:
+
+- Capability-first
+- API-first
+- Safety-first
+- Core-first
+- Documentation-first
+- Universal Capability Platform
+
+The stable Cyber32 promise is:
+
+```text
+Capability contracts are the center.
+Core owns system intelligence.
+Nodes provide capabilities.
+UI uses API.
+Safety gates action.
+Documentation guides implementation.
+AI assists, but does not govern.
+```

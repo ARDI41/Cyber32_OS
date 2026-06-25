@@ -19,6 +19,8 @@ public:
     void attachMotorService(MotorService* service);
     void attachRelayService(RelayService* service);
     bool getSystemStatus(ApiSystemStatus& out_status);
+    bool getSystemIdentity(ApiSystemIdentity& out_response);
+    bool getSystemFirmware(ApiSystemFirmware& out_response);
     bool getTemperatureState(ApiCapabilityState& out_state);
     bool getDistanceState(ApiCapabilityState& out_state);
     bool getServoPositionState(ApiCapabilityState& out_state);
