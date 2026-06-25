@@ -25,6 +25,18 @@ public:
     bool getSystemModes(ApiSystemModes& out_response);
     bool getSystemMemory(ApiSystemMemory& out_response);
     bool getSystemSummary(ApiSystemSummary& out_response);
+    bool getNodeList(ApiNodeList& out_response);
+    bool getNodeSummary(uint8_t node_index, ApiNodeSummary& out_response);
+    bool getNodeIdentity(uint8_t node_index, ApiNodeIdentity& out_response);
+    bool getNodeStatus(uint8_t node_index, ApiNodeStatus& out_response);
+    bool getNodePower(uint8_t node_index, ApiNodePower& out_response);
+    bool getNodeSignal(uint8_t node_index, ApiNodeSignal& out_response);
+    bool getNodeDiagnostics(uint8_t node_index, ApiNodeDiagnosticsSummary& out_response);
+    bool getNodeCapabilities(
+        uint8_t node_index,
+        ApiNodeCapabilitySummary* out_capabilities,
+        uint8_t max_count,
+        uint8_t& out_count);
     bool getTemperatureState(ApiCapabilityState& out_state);
     bool getDistanceState(ApiCapabilityState& out_state);
     bool getServoPositionState(ApiCapabilityState& out_state);

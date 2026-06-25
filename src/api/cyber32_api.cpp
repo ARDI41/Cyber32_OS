@@ -142,6 +142,134 @@ bool Cyber32Api::getSystemSummary(ApiSystemSummary& out_response) {
     return true;
 }
 
+bool Cyber32Api::getNodeList(ApiNodeList& out_response) {
+    out_response.ok = true;
+    out_response.error_code = "none";
+    out_response.count = 0;
+    return true;
+}
+
+bool Cyber32Api::getNodeSummary(uint8_t node_index, ApiNodeSummary& out_response) {
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "node_not_found";
+        return false;
+    }
+
+    out_response = node_list.nodes[node_index];
+    return out_response.ok;
+}
+
+bool Cyber32Api::getNodeIdentity(uint8_t node_index, ApiNodeIdentity& out_response) {
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "node_not_found";
+        out_response.node_id = 0;
+        out_response.friendly_name = "none";
+        out_response.provider_type = CapabilityProviderType::UNKNOWN;
+        for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+            out_response.source_mac[i] = 0;
+        }
+        out_response.has_source_mac = false;
+        return false;
+    }
+
+    out_response = node_list.nodes[node_index].identity;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getNodeStatus(uint8_t node_index, ApiNodeStatus& out_response) {
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "node_not_found";
+        out_response.online = false;
+        out_response.paired = false;
+        out_response.trusted = false;
+        out_response.blocked = false;
+        out_response.last_seen_ms = 0;
+        out_response.provider_status = CapabilityProviderStatus::UNKNOWN;
+        return false;
+    }
+
+    out_response = node_list.nodes[node_index].status;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getNodePower(uint8_t node_index, ApiNodePower& out_response) {
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "node_not_found";
+        out_response.battery_percent = 0;
+        out_response.battery_mv = 0;
+        out_response.has_battery_percent = false;
+        out_response.has_battery_mv = false;
+        return false;
+    }
+
+    out_response = node_list.nodes[node_index].power;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getNodeSignal(uint8_t node_index, ApiNodeSignal& out_response) {
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "node_not_found";
+        out_response.rssi = 0;
+        out_response.has_rssi = false;
+        out_response.signal_quality_percent = 0;
+        return false;
+    }
+
+    out_response = node_list.nodes[node_index].signal;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getNodeDiagnostics(uint8_t node_index, ApiNodeDiagnosticsSummary& out_response) {
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "node_not_found";
+        out_response.accepted_packet_count = 0;
+        out_response.rejected_packet_count = 0;
+        out_response.last_error_code = "none";
+        out_response.has_security_diagnostics = false;
+        return false;
+    }
+
+    out_response = node_list.nodes[node_index].diagnostics;
+    return out_response.ok;
+}
+
+bool Cyber32Api::getNodeCapabilities(
+    uint8_t node_index,
+    ApiNodeCapabilitySummary* out_capabilities,
+    uint8_t max_count,
+    uint8_t& out_count) {
+    out_count = 0;
+
+    if (max_count > 0 && out_capabilities == 0) {
+        return false;
+    }
+
+    ApiNodeList node_list;
+    if (!getNodeList(node_list) || node_index >= node_list.count) {
+        return false;
+    }
+
+    if (max_count == 0) {
+        return true;
+    }
+
+    out_capabilities[0] = node_list.nodes[node_index].capabilities;
+    out_count = 1;
+    return out_capabilities[0].ok;
+}
+
 bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
     if (registry_ == 0) {
         fillUnavailableTemperatureState(out_state);

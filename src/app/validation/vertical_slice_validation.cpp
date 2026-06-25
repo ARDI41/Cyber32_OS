@@ -1025,6 +1025,222 @@ bool VerticalSliceValidation::validateApiState() {
         return fail("api_system_summary_memory_not_ok");
     }
 
+    ApiNodeList node_list;
+    if (!api_.getNodeList(node_list)) {
+        return fail("api_node_list_failed");
+    }
+    if (!node_list.ok) {
+        return fail("api_node_list_not_ok");
+    }
+    if (!isSameText(node_list.error_code, "none")) {
+        return fail("api_node_list_error_invalid");
+    }
+    if (node_list.count != 0) {
+        return fail("api_node_list_count_invalid");
+    }
+    if (node_list.count > API_MAX_NODE_SUMMARY_COUNT) {
+        return fail("api_node_list_count_overflow");
+    }
+
+    ApiNodeList node_list_repeat;
+    if (!api_.getNodeList(node_list_repeat)) {
+        return fail("api_node_list_repeat_failed");
+    }
+    if (node_list_repeat.count != node_list.count) {
+        return fail("api_node_list_repeat_mutated");
+    }
+
+    ApiNodeSummary node_summary;
+    if (api_.getNodeSummary(0, node_summary)) {
+        return fail("api_node_summary_unexpected_success");
+    }
+    if (node_summary.ok) {
+        return fail("api_node_summary_unexpected_ok");
+    }
+    if (!isSameText(node_summary.error_code, "node_not_found")) {
+        return fail("api_node_summary_error_invalid");
+    }
+
+    ApiNodeSummary node_summary_repeat;
+    if (api_.getNodeSummary(0, node_summary_repeat)) {
+        return fail("api_node_summary_repeat_unexpected_success");
+    }
+    if (!isSameText(node_summary_repeat.error_code, node_summary.error_code)) {
+        return fail("api_node_summary_repeat_mutated");
+    }
+
+    ApiNodeIdentity node_identity;
+    if (api_.getNodeIdentity(0, node_identity)) {
+        return fail("api_node_identity_unexpected_success");
+    }
+    if (node_identity.ok) {
+        return fail("api_node_identity_unexpected_ok");
+    }
+    if (!isSameText(node_identity.error_code, "node_not_found")) {
+        return fail("api_node_identity_error_invalid");
+    }
+    if (node_identity.node_id != 0) {
+        return fail("api_node_identity_node_id_invalid");
+    }
+    if (node_identity.has_source_mac) {
+        return fail("api_node_identity_mac_present");
+    }
+
+    ApiNodeIdentity node_identity_repeat;
+    if (api_.getNodeIdentity(0, node_identity_repeat)) {
+        return fail("api_node_identity_repeat_unexpected_success");
+    }
+    if (!isSameText(node_identity_repeat.error_code, node_identity.error_code)) {
+        return fail("api_node_identity_repeat_mutated");
+    }
+
+    ApiNodeStatus node_status;
+    if (api_.getNodeStatus(0, node_status)) {
+        return fail("api_node_status_unexpected_success");
+    }
+    if (node_status.ok) {
+        return fail("api_node_status_unexpected_ok");
+    }
+    if (!isSameText(node_status.error_code, "node_not_found")) {
+        return fail("api_node_status_error_invalid");
+    }
+    if (node_status.online || node_status.paired || node_status.trusted ||
+        node_status.blocked) {
+        return fail("api_node_status_flags_invalid");
+    }
+    if (node_status.last_seen_ms != 0) {
+        return fail("api_node_status_last_seen_invalid");
+    }
+
+    ApiNodeStatus node_status_repeat;
+    if (api_.getNodeStatus(0, node_status_repeat)) {
+        return fail("api_node_status_repeat_unexpected_success");
+    }
+    if (!isSameText(node_status_repeat.error_code, node_status.error_code)) {
+        return fail("api_node_status_repeat_mutated");
+    }
+
+    ApiNodePower node_power;
+    if (api_.getNodePower(0, node_power)) {
+        return fail("api_node_power_unexpected_success");
+    }
+    if (node_power.ok) {
+        return fail("api_node_power_unexpected_ok");
+    }
+    if (!isSameText(node_power.error_code, "node_not_found")) {
+        return fail("api_node_power_error_invalid");
+    }
+    if (node_power.has_battery_percent || node_power.has_battery_mv) {
+        return fail("api_node_power_presence_invalid");
+    }
+    if (node_power.battery_percent != 0 || node_power.battery_mv != 0) {
+        return fail("api_node_power_values_invalid");
+    }
+
+    ApiNodePower node_power_repeat;
+    if (api_.getNodePower(0, node_power_repeat)) {
+        return fail("api_node_power_repeat_unexpected_success");
+    }
+    if (!isSameText(node_power_repeat.error_code, node_power.error_code)) {
+        return fail("api_node_power_repeat_mutated");
+    }
+
+    ApiNodeSignal node_signal;
+    if (api_.getNodeSignal(0, node_signal)) {
+        return fail("api_node_signal_unexpected_success");
+    }
+    if (node_signal.ok) {
+        return fail("api_node_signal_unexpected_ok");
+    }
+    if (!isSameText(node_signal.error_code, "node_not_found")) {
+        return fail("api_node_signal_error_invalid");
+    }
+    if (node_signal.has_rssi) {
+        return fail("api_node_signal_rssi_present");
+    }
+    if (node_signal.rssi != 0 || node_signal.signal_quality_percent != 0) {
+        return fail("api_node_signal_values_invalid");
+    }
+
+    ApiNodeSignal node_signal_repeat;
+    if (api_.getNodeSignal(0, node_signal_repeat)) {
+        return fail("api_node_signal_repeat_unexpected_success");
+    }
+    if (!isSameText(node_signal_repeat.error_code, node_signal.error_code)) {
+        return fail("api_node_signal_repeat_mutated");
+    }
+
+    ApiNodeDiagnosticsSummary node_diagnostics;
+    if (api_.getNodeDiagnostics(0, node_diagnostics)) {
+        return fail("api_node_diagnostics_unexpected_success");
+    }
+    if (node_diagnostics.ok) {
+        return fail("api_node_diagnostics_unexpected_ok");
+    }
+    if (!isSameText(node_diagnostics.error_code, "node_not_found")) {
+        return fail("api_node_diagnostics_error_invalid");
+    }
+    if (node_diagnostics.accepted_packet_count != 0 ||
+        node_diagnostics.rejected_packet_count != 0) {
+        return fail("api_node_diagnostics_counts_invalid");
+    }
+    if (!isSameText(node_diagnostics.last_error_code, "none")) {
+        return fail("api_node_diagnostics_last_error_invalid");
+    }
+    if (node_diagnostics.has_security_diagnostics) {
+        return fail("api_node_diagnostics_security_present");
+    }
+
+    ApiNodeDiagnosticsSummary node_diagnostics_repeat;
+    if (api_.getNodeDiagnostics(0, node_diagnostics_repeat)) {
+        return fail("api_node_diagnostics_repeat_unexpected_success");
+    }
+    if (!isSameText(node_diagnostics_repeat.error_code, node_diagnostics.error_code) ||
+        node_diagnostics_repeat.accepted_packet_count != node_diagnostics.accepted_packet_count ||
+        node_diagnostics_repeat.rejected_packet_count != node_diagnostics.rejected_packet_count ||
+        !isSameText(node_diagnostics_repeat.last_error_code, node_diagnostics.last_error_code) ||
+        node_diagnostics_repeat.has_security_diagnostics !=
+            node_diagnostics.has_security_diagnostics) {
+        return fail("api_node_diagnostics_repeat_mutated");
+    }
+
+    ApiNodeCapabilitySummary node_capabilities[2];
+    uint8_t node_capability_count = 99;
+    if (api_.getNodeCapabilities(0, node_capabilities, 2, node_capability_count)) {
+        return fail("api_node_capabilities_unexpected_success");
+    }
+    if (node_capability_count != 0) {
+        return fail("api_node_capabilities_count_invalid");
+    }
+
+    uint8_t node_capability_count_repeat = 99;
+    if (api_.getNodeCapabilities(0, node_capabilities, 2, node_capability_count_repeat)) {
+        return fail("api_node_capabilities_repeat_unexpected_success");
+    }
+    if (node_capability_count_repeat != node_capability_count) {
+        return fail("api_node_capabilities_repeat_mutated");
+    }
+
+    node_capabilities[0].capability_count = 77;
+    uint8_t zero_max_capability_count = 99;
+    if (api_.getNodeCapabilities(0, 0, 0, zero_max_capability_count)) {
+        return fail("api_node_capabilities_zero_max_unexpected_success");
+    }
+    if (zero_max_capability_count != 0) {
+        return fail("api_node_capabilities_zero_max_count_invalid");
+    }
+    if (node_capabilities[0].capability_count != 77) {
+        return fail("api_node_capabilities_zero_max_wrote_buffer");
+    }
+
+    uint8_t null_capability_count = 99;
+    if (api_.getNodeCapabilities(0, 0, 2, null_capability_count)) {
+        return fail("api_node_capabilities_null_unexpected_success");
+    }
+    if (null_capability_count != 0) {
+        return fail("api_node_capabilities_null_count_invalid");
+    }
+
     ApiCapabilityState state;
     if (!api_.getTemperatureState(state)) {
         return fail("api_temperature_failed");
