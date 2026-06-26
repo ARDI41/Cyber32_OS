@@ -1419,6 +1419,34 @@ bool VerticalSliceValidation::validateApiState() {
         return fail("api_capability_provider_info_repeat_mutated");
     }
 
+    ApiCapabilityQuality capability_quality;
+    if (api_.getCapabilityQuality(0, capability_quality)) {
+        return fail("api_capability_quality_unexpected_success");
+    }
+    if (capability_quality.ok) {
+        return fail("api_capability_quality_unexpected_ok");
+    }
+    if (!isSameText(capability_quality.error_code, "capability_not_found")) {
+        return fail("api_capability_quality_error_invalid");
+    }
+    if (capability_quality.quality != 0 ||
+        !isSameText(capability_quality.error_code_payload, "none") ||
+        capability_quality.has_error) {
+        return fail("api_capability_quality_defaults_invalid");
+    }
+
+    ApiCapabilityQuality capability_quality_repeat;
+    if (api_.getCapabilityQuality(0, capability_quality_repeat)) {
+        return fail("api_capability_quality_repeat_unexpected_success");
+    }
+    if (!isSameText(capability_quality_repeat.error_code, capability_quality.error_code) ||
+        capability_quality_repeat.quality != capability_quality.quality ||
+        !isSameText(capability_quality_repeat.error_code_payload,
+                    capability_quality.error_code_payload) ||
+        capability_quality_repeat.has_error != capability_quality.has_error) {
+        return fail("api_capability_quality_repeat_mutated");
+    }
+
     ApiCapabilityState state;
     if (!api_.getTemperatureState(state)) {
         return fail("api_temperature_failed");

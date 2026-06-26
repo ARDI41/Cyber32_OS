@@ -43,6 +43,7 @@ public:
     bool getCapabilityValue(uint8_t capability_index, ApiCapabilityValue& out_response);
     bool getCapabilityAvailability(uint8_t capability_index, ApiCapabilityAvailability& out_response);
     bool getCapabilityProviderInfo(uint8_t capability_index, ApiCapabilityProviderInfo& out_response);
+    bool getCapabilityQuality(uint8_t capability_index, ApiCapabilityQuality& out_response);
     bool getTemperatureState(ApiCapabilityState& out_state);
     bool getDistanceState(ApiCapabilityState& out_state);
     bool getServoPositionState(ApiCapabilityState& out_state);

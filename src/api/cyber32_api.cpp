@@ -368,6 +368,23 @@ bool Cyber32Api::getCapabilityProviderInfo(
     return out_response.ok;
 }
 
+bool Cyber32Api::getCapabilityQuality(
+    uint8_t capability_index,
+    ApiCapabilityQuality& out_response) {
+    ApiCapabilityList capability_list;
+    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+        out_response.ok = false;
+        out_response.error_code = "capability_not_found";
+        out_response.quality = 0;
+        out_response.error_code_payload = "none";
+        out_response.has_error = false;
+        return false;
+    }
+
+    out_response = capability_list.capabilities[capability_index].quality;
+    return out_response.ok;
+}
+
 bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
     if (registry_ == 0) {
         fillUnavailableTemperatureState(out_state);
