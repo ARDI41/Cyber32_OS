@@ -305,6 +305,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateCapabilityDirectoryEmptySkeleton()) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -473,6 +477,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateNodeDirectoryEmptySkeleton()) {
+        return false;
+    }
+
+    if (!validateCapabilityDirectoryEmptySkeleton()) {
         return false;
     }
 
@@ -7421,6 +7429,84 @@ bool VerticalSliceValidation::validateNodeDirectoryEmptySkeleton() {
     }
     if (out_record.valid || out_record.node_id != 0) {
         return fail("node_directory_reset_record_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateCapabilityDirectoryEmptySkeleton() {
+    CapabilityDirectory directory;
+    if (directory.count() != 0) {
+        return fail("capability_directory_default_count_invalid");
+    }
+    if (!directory.isEmpty()) {
+        return fail("capability_directory_default_not_empty");
+    }
+    if (directory.capacity() == 0 ||
+        directory.capacity() != CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return fail("capability_directory_capacity_invalid");
+    }
+
+    PublicCapabilityRecord out_record;
+    out_record.capability_id = 1234;
+    out_record.capability_instance_id = 88;
+    out_record.owner_node_id = 77;
+    out_record.valid = true;
+    out_record.lifecycle_state = PublicLifecycleState::AVAILABLE;
+    out_record.visibility_state = PublicVisibilityState::PUBLIC;
+    out_record.value_availability_state = PublicAvailabilityState::AVAILABLE;
+    out_record.freshness_state = PublicFreshnessState::FRESH;
+    out_record.provider_available = true;
+    out_record.diagnostics_available = true;
+    if (directory.readByIndex(0, out_record)) {
+        return fail("capability_directory_empty_read_succeeded");
+    }
+    if (out_record.valid || out_record.capability_id != 0 ||
+        out_record.capability_instance_id != 0 || out_record.owner_node_id != 0 ||
+        out_record.category != 0 ||
+        out_record.lifecycle_state != PublicLifecycleState::NONE ||
+        out_record.visibility_state != PublicVisibilityState::NONE ||
+        out_record.value_availability_state != PublicAvailabilityState::UNKNOWN ||
+        out_record.freshness_state != PublicFreshnessState::UNKNOWN ||
+        out_record.provider_available || out_record.diagnostics_available) {
+        return fail("capability_directory_empty_read_record_invalid");
+    }
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("capability_directory_empty_read_mutated");
+    }
+
+    if (directory.readByIndex(directory.capacity(), out_record)) {
+        return fail("capability_directory_out_of_range_read_succeeded");
+    }
+    if (out_record.valid || out_record.capability_id != 0 ||
+        out_record.capability_instance_id != 0 || out_record.owner_node_id != 0) {
+        return fail("capability_directory_out_of_range_record_invalid");
+    }
+    if (directory.count() != 0) {
+        return fail("capability_directory_out_of_range_mutated");
+    }
+
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        if (directory.readByIndex(0, out_record)) {
+            return fail("capability_directory_repeated_empty_read_succeeded");
+        }
+        if (directory.count() != 0 || !directory.isEmpty() ||
+            out_record.valid || out_record.capability_id != 0 ||
+            out_record.capability_instance_id != 0) {
+            return fail("capability_directory_repeated_empty_read_mutated");
+        }
+    }
+
+    directory.reset();
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("capability_directory_reset_invalid");
+    }
+    if (directory.readByIndex(0, out_record)) {
+        return fail("capability_directory_reset_read_succeeded");
+    }
+    if (out_record.valid || out_record.capability_id != 0 ||
+        out_record.capability_instance_id != 0) {
+        return fail("capability_directory_reset_record_invalid");
     }
 
     return true;
