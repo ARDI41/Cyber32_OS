@@ -1057,6 +1057,9 @@ bool VerticalSliceValidation::validateApiState() {
     if (node_list.count > API_MAX_NODE_SUMMARY_COUNT) {
         return fail("api_node_list_count_overflow");
     }
+    if (node_list.count > NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return fail("api_node_list_node_directory_overflow");
+    }
 
     ApiNodeList node_list_repeat;
     if (!api_.getNodeList(node_list_repeat)) {

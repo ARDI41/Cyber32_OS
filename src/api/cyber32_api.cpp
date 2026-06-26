@@ -5,8 +5,24 @@
 #include "../services/motor/motor_service.h"
 #include "../services/relay/relay_service.h"
 #include "../services/servo/servo_service.h"
+#include "../../include/cyber32/public/node_directory.h"
 
 namespace Cyber32 {
+
+namespace {
+
+NodeDirectory& apiNodeDirectory() {
+    // Provisional empty public owner for Node API attachment.
+    // A later public owner lifetime milestone can replace this with an explicit Core owner.
+    static NodeDirectory directory;
+    return directory;
+}
+
+bool readApiNodeRecord(uint8_t node_index, PublicNodeRecord& out_record) {
+    return apiNodeDirectory().readByIndex(static_cast<PublicNodeIndex>(node_index), out_record);
+}
+
+}  // namespace
 
 static bool isApiTextPresent(const char* value) {
     return value != 0 && value[0] != '\0';
@@ -145,25 +161,26 @@ bool Cyber32Api::getSystemSummary(ApiSystemSummary& out_response) {
 bool Cyber32Api::getNodeList(ApiNodeList& out_response) {
     out_response.ok = true;
     out_response.error_code = "none";
-    out_response.count = 0;
+    out_response.count = apiNodeDirectory().count();
     return true;
 }
 
 bool Cyber32Api::getNodeSummary(uint8_t node_index, ApiNodeSummary& out_response) {
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         return false;
     }
 
-    out_response = node_list.nodes[node_index];
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "node_not_found";
+    return false;
 }
 
 bool Cyber32Api::getNodeIdentity(uint8_t node_index, ApiNodeIdentity& out_response) {
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.node_id = 0;
@@ -176,13 +193,21 @@ bool Cyber32Api::getNodeIdentity(uint8_t node_index, ApiNodeIdentity& out_respon
         return false;
     }
 
-    out_response = node_list.nodes[node_index].identity;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "node_not_found";
+    out_response.node_id = 0;
+    out_response.friendly_name = "none";
+    out_response.provider_type = CapabilityProviderType::UNKNOWN;
+    for (uint8_t i = 0; i < WIRELESS_MAC_ADDRESS_SIZE; ++i) {
+        out_response.source_mac[i] = 0;
+    }
+    out_response.has_source_mac = false;
+    return false;
 }
 
 bool Cyber32Api::getNodeStatus(uint8_t node_index, ApiNodeStatus& out_response) {
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.online = false;
@@ -194,13 +219,20 @@ bool Cyber32Api::getNodeStatus(uint8_t node_index, ApiNodeStatus& out_response) 
         return false;
     }
 
-    out_response = node_list.nodes[node_index].status;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "node_not_found";
+    out_response.online = false;
+    out_response.paired = false;
+    out_response.trusted = false;
+    out_response.blocked = false;
+    out_response.last_seen_ms = 0;
+    out_response.provider_status = CapabilityProviderStatus::UNKNOWN;
+    return false;
 }
 
 bool Cyber32Api::getNodePower(uint8_t node_index, ApiNodePower& out_response) {
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.battery_percent = 0;
@@ -210,13 +242,18 @@ bool Cyber32Api::getNodePower(uint8_t node_index, ApiNodePower& out_response) {
         return false;
     }
 
-    out_response = node_list.nodes[node_index].power;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "node_not_found";
+    out_response.battery_percent = 0;
+    out_response.battery_mv = 0;
+    out_response.has_battery_percent = false;
+    out_response.has_battery_mv = false;
+    return false;
 }
 
 bool Cyber32Api::getNodeSignal(uint8_t node_index, ApiNodeSignal& out_response) {
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.rssi = 0;
@@ -225,13 +262,17 @@ bool Cyber32Api::getNodeSignal(uint8_t node_index, ApiNodeSignal& out_response) 
         return false;
     }
 
-    out_response = node_list.nodes[node_index].signal;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "node_not_found";
+    out_response.rssi = 0;
+    out_response.has_rssi = false;
+    out_response.signal_quality_percent = 0;
+    return false;
 }
 
 bool Cyber32Api::getNodeDiagnostics(uint8_t node_index, ApiNodeDiagnosticsSummary& out_response) {
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.accepted_packet_count = 0;
@@ -241,8 +282,13 @@ bool Cyber32Api::getNodeDiagnostics(uint8_t node_index, ApiNodeDiagnosticsSummar
         return false;
     }
 
-    out_response = node_list.nodes[node_index].diagnostics;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "node_not_found";
+    out_response.accepted_packet_count = 0;
+    out_response.rejected_packet_count = 0;
+    out_response.last_error_code = "none";
+    out_response.has_security_diagnostics = false;
+    return false;
 }
 
 bool Cyber32Api::getNodeCapabilities(
@@ -256,18 +302,12 @@ bool Cyber32Api::getNodeCapabilities(
         return false;
     }
 
-    ApiNodeList node_list;
-    if (!getNodeList(node_list) || node_index >= node_list.count) {
+    PublicNodeRecord node_record;
+    if (!readApiNodeRecord(node_index, node_record)) {
         return false;
     }
 
-    if (max_count == 0) {
-        return true;
-    }
-
-    out_capabilities[0] = node_list.nodes[node_index].capabilities;
-    out_count = 1;
-    return out_capabilities[0].ok;
+    return false;
 }
 
 bool Cyber32Api::getCapabilityList(ApiCapabilityList& out_response) {
