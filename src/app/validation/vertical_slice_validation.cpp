@@ -297,6 +297,14 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validatePublicOwnerTypeDefaults()) {
+        return false;
+    }
+
+    if (!validateNodeDirectoryEmptySkeleton()) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -457,6 +465,14 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateCapabilityProviderStorage(now_ms)) {
+        return false;
+    }
+
+    if (!validatePublicOwnerTypeDefaults()) {
+        return false;
+    }
+
+    if (!validateNodeDirectoryEmptySkeleton()) {
         return false;
     }
 
@@ -7246,6 +7262,162 @@ bool VerticalSliceValidation::validateCapabilityProviderStorage(uint32_t now_ms)
     }
     if (registry_.capabilityCount() != 5) {
         return fail("provider_capability_count_changed");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validatePublicOwnerTypeDefaults() {
+    if (static_cast<unsigned char>(PublicLifecycleState::NONE) != 0 ||
+        static_cast<unsigned char>(PublicTrustState::UNKNOWN) != 0 ||
+        static_cast<unsigned char>(PublicAvailabilityState::UNKNOWN) != 0 ||
+        static_cast<unsigned char>(PublicFreshnessState::UNKNOWN) != 0 ||
+        static_cast<unsigned char>(PublicHealthState::UNKNOWN) != 0) {
+        return fail("public_owner_enum_defaults_invalid");
+    }
+
+    PublicNodeRecord node;
+    if (node.valid || node.node_id != 0 || node.source_type != 0 ||
+        node.lifecycle_state != PublicLifecycleState::NONE ||
+        node.visibility_state != PublicVisibilityState::NONE ||
+        node.trust_state != PublicTrustState::UNKNOWN ||
+        node.capability_count != 0 ||
+        node.freshness_state != PublicFreshnessState::UNKNOWN ||
+        node.diagnostics_available || node.last_seen_ms != 0) {
+        return fail("public_node_default_invalid");
+    }
+    node.node_id = 42;
+    node.valid = true;
+    node.reset();
+    if (node.valid || node.node_id != 0) {
+        return fail("public_node_reset_invalid");
+    }
+
+    PublicCapabilityRecord capability;
+    if (capability.valid || capability.capability_id != 0 ||
+        capability.capability_instance_id != 0 || capability.owner_node_id != 0 ||
+        capability.category != 0 ||
+        capability.lifecycle_state != PublicLifecycleState::NONE ||
+        capability.visibility_state != PublicVisibilityState::NONE ||
+        capability.value_availability_state != PublicAvailabilityState::UNKNOWN ||
+        capability.freshness_state != PublicFreshnessState::UNKNOWN ||
+        capability.provider_available || capability.diagnostics_available) {
+        return fail("public_capability_default_invalid");
+    }
+
+    PublicNodeCapabilityLink link;
+    if (link.active || link.link_id != 0 || link.node_id != 0 ||
+        link.capability_instance_id != 0 ||
+        link.link_visibility_state != PublicVisibilityState::NONE ||
+        link.link_freshness_state != PublicFreshnessState::UNKNOWN ||
+        link.diagnostics_available || link.display_order != 0) {
+        return fail("public_node_capability_link_default_invalid");
+    }
+
+    PublicCapabilityValueSnapshot value;
+    if (value.capability_instance_id != 0 || value.value_type != PayloadValueType::NONE ||
+        value.value_valid || value.value_available || value.value_stale ||
+        value.unavailable_reason != PublicUnavailableReason::NO_OWNER ||
+        value.numeric_value != 0.0F || value.bool_value || value.last_update_ms != 0 ||
+        value.unit_metadata_ref != 0 || value.quality_ref != 0) {
+        return fail("public_capability_value_default_invalid");
+    }
+
+    PublicNodeDiagnosticsSnapshot node_diagnostics;
+    if (node_diagnostics.node_id != 0 || node_diagnostics.diagnostics_available ||
+        node_diagnostics.health_known || node_diagnostics.health_ok ||
+        node_diagnostics.stale || node_diagnostics.last_update_ms != 0 ||
+        node_diagnostics.accepted_count != 0 || node_diagnostics.rejected_count != 0 ||
+        node_diagnostics.unavailable_reason != PublicUnavailableReason::NO_OWNER) {
+        return fail("public_node_diagnostics_default_invalid");
+    }
+
+    PublicCapabilityDiagnosticsSnapshot capability_diagnostics;
+    if (capability_diagnostics.capability_instance_id != 0 ||
+        capability_diagnostics.diagnostics_available ||
+        capability_diagnostics.health_known || capability_diagnostics.health_ok ||
+        capability_diagnostics.stale || capability_diagnostics.last_update_ms != 0 ||
+        capability_diagnostics.accepted_count != 0 ||
+        capability_diagnostics.rejected_count != 0 ||
+        capability_diagnostics.unavailable_reason != PublicUnavailableReason::NO_OWNER) {
+        return fail("public_capability_diagnostics_default_invalid");
+    }
+
+    PublicProviderDiagnosticsSnapshot provider_diagnostics;
+    if (provider_diagnostics.provider_id != 0 ||
+        provider_diagnostics.diagnostics_available ||
+        provider_diagnostics.health_known || provider_diagnostics.health_ok ||
+        provider_diagnostics.stale || provider_diagnostics.last_update_ms != 0 ||
+        provider_diagnostics.accepted_count != 0 ||
+        provider_diagnostics.rejected_count != 0 ||
+        provider_diagnostics.unavailable_reason != PublicUnavailableReason::NO_OWNER) {
+        return fail("public_provider_diagnostics_default_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateNodeDirectoryEmptySkeleton() {
+    NodeDirectory directory;
+    if (directory.count() != 0) {
+        return fail("node_directory_default_count_invalid");
+    }
+    if (!directory.isEmpty()) {
+        return fail("node_directory_default_not_empty");
+    }
+    if (directory.capacity() == 0 ||
+        directory.capacity() != NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return fail("node_directory_capacity_invalid");
+    }
+
+    PublicNodeRecord out_record;
+    out_record.node_id = 77;
+    out_record.valid = true;
+    out_record.lifecycle_state = PublicLifecycleState::AVAILABLE;
+    if (directory.readByIndex(0, out_record)) {
+        return fail("node_directory_empty_read_succeeded");
+    }
+    if (out_record.valid || out_record.node_id != 0 ||
+        out_record.lifecycle_state != PublicLifecycleState::NONE ||
+        out_record.visibility_state != PublicVisibilityState::NONE ||
+        out_record.trust_state != PublicTrustState::UNKNOWN ||
+        out_record.capability_count != 0 ||
+        out_record.diagnostics_available ||
+        out_record.last_seen_ms != 0) {
+        return fail("node_directory_empty_read_record_invalid");
+    }
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("node_directory_empty_read_mutated");
+    }
+
+    if (directory.readByIndex(directory.capacity(), out_record)) {
+        return fail("node_directory_out_of_range_read_succeeded");
+    }
+    if (out_record.valid || out_record.node_id != 0) {
+        return fail("node_directory_out_of_range_record_invalid");
+    }
+    if (directory.count() != 0) {
+        return fail("node_directory_out_of_range_mutated");
+    }
+
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        if (directory.readByIndex(0, out_record)) {
+            return fail("node_directory_repeated_empty_read_succeeded");
+        }
+        if (directory.count() != 0 || !directory.isEmpty() || out_record.valid) {
+            return fail("node_directory_repeated_empty_read_mutated");
+        }
+    }
+
+    directory.reset();
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("node_directory_reset_invalid");
+    }
+    if (directory.readByIndex(0, out_record)) {
+        return fail("node_directory_reset_read_succeeded");
+    }
+    if (out_record.valid || out_record.node_id != 0) {
+        return fail("node_directory_reset_record_invalid");
     }
 
     return true;

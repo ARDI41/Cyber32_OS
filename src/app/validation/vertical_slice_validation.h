@@ -29,6 +29,8 @@
 #include "../../services/servo/servo_service.h"
 #include "../../services/temperature/temperature_service.h"
 #include "../../services/wireless/wireless_service.h"
+#include "../../../include/cyber32/public/node_directory.h"
+#include "../../../include/cyber32/public/public_owner_types.h"
 
 namespace Cyber32 {
 
@@ -215,6 +217,8 @@ private:
     bool validateWirelessServiceProcessPacketsAdapterPath(uint32_t now_ms);
     bool validateEspNowAdapterWirelessServicePath(uint32_t now_ms);
     bool validateCapabilityProviderStorage(uint32_t now_ms);
+    bool validatePublicOwnerTypeDefaults();
+    bool validateNodeDirectoryEmptySkeleton();
     void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;
 };
