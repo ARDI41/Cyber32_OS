@@ -1284,6 +1284,9 @@ bool VerticalSliceValidation::validateApiState() {
     if (capability_list.count > API_MAX_CAPABILITY_SUMMARY_COUNT) {
         return fail("api_capability_list_count_overflow");
     }
+    if (capability_list.count > CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return fail("api_capability_list_directory_bound_invalid");
+    }
 
     ApiCapabilityList capability_list_repeat;
     if (!api_.getCapabilityList(capability_list_repeat)) {

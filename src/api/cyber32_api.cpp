@@ -5,6 +5,7 @@
 #include "../services/motor/motor_service.h"
 #include "../services/relay/relay_service.h"
 #include "../services/servo/servo_service.h"
+#include "../../include/cyber32/public/capability_directory.h"
 #include "../../include/cyber32/public/node_directory.h"
 
 namespace Cyber32 {
@@ -18,8 +19,21 @@ NodeDirectory& apiNodeDirectory() {
     return directory;
 }
 
+CapabilityDirectory& apiCapabilityDirectory() {
+    // Provisional empty public owner for Capability API attachment.
+    // A later public owner lifetime milestone can replace this with an explicit Core owner.
+    static CapabilityDirectory directory;
+    return directory;
+}
+
 bool readApiNodeRecord(uint8_t node_index, PublicNodeRecord& out_record) {
     return apiNodeDirectory().readByIndex(static_cast<PublicNodeIndex>(node_index), out_record);
+}
+
+bool readApiCapabilityRecord(uint8_t capability_index, PublicCapabilityRecord& out_record) {
+    return apiCapabilityDirectory().readByIndex(
+        static_cast<PublicCapabilityIndex>(capability_index),
+        out_record);
 }
 
 }  // namespace
@@ -313,29 +327,33 @@ bool Cyber32Api::getNodeCapabilities(
 bool Cyber32Api::getCapabilityList(ApiCapabilityList& out_response) {
     out_response.ok = true;
     out_response.error_code = "none";
-    out_response.count = 0;
+    out_response.count = apiCapabilityDirectory().count();
+    if (out_response.count > API_MAX_CAPABILITY_SUMMARY_COUNT) {
+        out_response.count = API_MAX_CAPABILITY_SUMMARY_COUNT;
+    }
     return true;
 }
 
 bool Cyber32Api::getCapabilitySummary(
     uint8_t capability_index,
     ApiCapabilitySummary& out_response) {
-    ApiCapabilityList capability_list;
-    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+    PublicCapabilityRecord capability_record;
+    if (!readApiCapabilityRecord(capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         return false;
     }
 
-    out_response = capability_list.capabilities[capability_index];
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "capability_not_found";
+    return false;
 }
 
 bool Cyber32Api::getCapabilityIdentity(
     uint8_t capability_index,
     ApiCapabilityIdentity& out_response) {
-    ApiCapabilityList capability_list;
-    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+    PublicCapabilityRecord capability_record;
+    if (!readApiCapabilityRecord(capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.capability_id = 0;
@@ -346,15 +364,21 @@ bool Cyber32Api::getCapabilityIdentity(
         return false;
     }
 
-    out_response = capability_list.capabilities[capability_index].identity;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "capability_not_found";
+    out_response.capability_id = 0;
+    out_response.friendly_name = 0;
+    out_response.category = 0;
+    out_response.value_type = PayloadValueType::NONE;
+    out_response.unit = 0;
+    return false;
 }
 
 bool Cyber32Api::getCapabilityValue(
     uint8_t capability_index,
     ApiCapabilityValue& out_response) {
-    ApiCapabilityList capability_list;
-    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+    PublicCapabilityRecord capability_record;
+    if (!readApiCapabilityRecord(capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.value_type = PayloadValueType::NONE;
@@ -366,15 +390,22 @@ bool Cyber32Api::getCapabilityValue(
         return false;
     }
 
-    out_response = capability_list.capabilities[capability_index].value;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "capability_not_found";
+    out_response.value_type = PayloadValueType::NONE;
+    out_response.value_float = 0.0F;
+    out_response.value_int = 0;
+    out_response.value_bool = false;
+    out_response.unit = 0;
+    out_response.timestamp_ms = 0;
+    return false;
 }
 
 bool Cyber32Api::getCapabilityAvailability(
     uint8_t capability_index,
     ApiCapabilityAvailability& out_response) {
-    ApiCapabilityList capability_list;
-    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+    PublicCapabilityRecord capability_record;
+    if (!readApiCapabilityRecord(capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.available = Availability::UNAVAILABLE;
@@ -384,15 +415,20 @@ bool Cyber32Api::getCapabilityAvailability(
         return false;
     }
 
-    out_response = capability_list.capabilities[capability_index].availability;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "capability_not_found";
+    out_response.available = Availability::UNAVAILABLE;
+    out_response.stale = StaleState::STALE;
+    out_response.last_update_ms = 0;
+    out_response.has_provider = false;
+    return false;
 }
 
 bool Cyber32Api::getCapabilityProviderInfo(
     uint8_t capability_index,
     ApiCapabilityProviderInfo& out_response) {
-    ApiCapabilityList capability_list;
-    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+    PublicCapabilityRecord capability_record;
+    if (!readApiCapabilityRecord(capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.active_provider_id = 0;
@@ -404,15 +440,22 @@ bool Cyber32Api::getCapabilityProviderInfo(
         return false;
     }
 
-    out_response = capability_list.capabilities[capability_index].provider;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "capability_not_found";
+    out_response.active_provider_id = 0;
+    out_response.provider_type = CapabilityProviderType::UNKNOWN;
+    out_response.provider_status = CapabilityProviderStatus::UNKNOWN;
+    out_response.owner_node_id = 0;
+    out_response.has_owner_node = false;
+    out_response.selected = false;
+    return false;
 }
 
 bool Cyber32Api::getCapabilityQuality(
     uint8_t capability_index,
     ApiCapabilityQuality& out_response) {
-    ApiCapabilityList capability_list;
-    if (!getCapabilityList(capability_list) || capability_index >= capability_list.count) {
+    PublicCapabilityRecord capability_record;
+    if (!readApiCapabilityRecord(capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.quality = 0;
@@ -421,8 +464,12 @@ bool Cyber32Api::getCapabilityQuality(
         return false;
     }
 
-    out_response = capability_list.capabilities[capability_index].quality;
-    return out_response.ok;
+    out_response.ok = false;
+    out_response.error_code = "capability_not_found";
+    out_response.quality = 0;
+    out_response.error_code_payload = "none";
+    out_response.has_error = false;
+    return false;
 }
 
 bool Cyber32Api::getTemperatureState(ApiCapabilityState& out_state) {
