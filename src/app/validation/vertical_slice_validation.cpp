@@ -325,6 +325,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validatePublicOwnerStoreNodeCapabilityMapOwnership()) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -513,6 +517,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validatePublicOwnerStoreEmptySkeleton()) {
+        return false;
+    }
+
+    if (!validatePublicOwnerStoreNodeCapabilityMapOwnership()) {
         return false;
     }
 
@@ -7952,11 +7960,17 @@ bool VerticalSliceValidation::validatePublicOwnerStoreEmptySkeleton() {
     if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
         return fail("public_owner_store_default_capabilities_invalid");
     }
+    if (store.nodeCapabilities().count() != 0 || !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_default_node_capabilities_invalid");
+    }
     if (store.nodes().capacity() != NODE_DIRECTORY_MAX_PUBLIC_NODES) {
         return fail("public_owner_store_node_capacity_invalid");
     }
     if (store.capabilities().capacity() != CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
         return fail("public_owner_store_capability_capacity_invalid");
+    }
+    if (store.nodeCapabilities().capacity() != NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS) {
+        return fail("public_owner_store_node_capability_capacity_invalid");
     }
 
     PublicNodeRecord node_record;
@@ -7984,22 +7998,44 @@ bool VerticalSliceValidation::validatePublicOwnerStoreEmptySkeleton() {
         return fail("public_owner_store_capability_read_mutated");
     }
 
+    PublicNodeCapabilityLink link_record;
+    link_record.link_id = 3001;
+    link_record.node_id = 1001;
+    link_record.capability_instance_id = 7001;
+    link_record.active = true;
+    if (store.nodeCapabilities().readByIndex(0, link_record)) {
+        return fail("public_owner_store_empty_node_capability_read_succeeded");
+    }
+    if (link_record.link_id != 0 || link_record.node_id != 0 ||
+        link_record.capability_instance_id != 0 || link_record.active) {
+        return fail("public_owner_store_empty_node_capability_link_invalid");
+    }
+    if (store.nodeCapabilities().count() != 0 || !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_node_capability_read_mutated");
+    }
+
     for (uint8_t attempt = 0; attempt < 3; ++attempt) {
         const NodeDirectory& nodes = store.nodes();
         const CapabilityDirectory& capabilities = store.capabilities();
+        const NodeCapabilityMap& node_capabilities = store.nodeCapabilities();
         if (nodes.count() != 0 || !nodes.isEmpty() ||
-            capabilities.count() != 0 || !capabilities.isEmpty()) {
+            capabilities.count() != 0 || !capabilities.isEmpty() ||
+            node_capabilities.count() != 0 || !node_capabilities.isEmpty()) {
             return fail("public_owner_store_repeated_read_mutated");
         }
     }
 
     NodeDirectory& mutable_nodes = store.mutableNodes();
     CapabilityDirectory& mutable_capabilities = store.mutableCapabilities();
+    NodeCapabilityMap& mutable_node_capabilities = store.mutableNodeCapabilities();
     if (mutable_nodes.count() != 0 || !mutable_nodes.isEmpty()) {
         return fail("public_owner_store_mutable_nodes_created_record");
     }
     if (mutable_capabilities.count() != 0 || !mutable_capabilities.isEmpty()) {
         return fail("public_owner_store_mutable_capabilities_created_record");
+    }
+    if (mutable_node_capabilities.count() != 0 || !mutable_node_capabilities.isEmpty()) {
+        return fail("public_owner_store_mutable_node_capabilities_created_link");
     }
 
     store.reset();
@@ -8009,11 +8045,93 @@ bool VerticalSliceValidation::validatePublicOwnerStoreEmptySkeleton() {
     if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
         return fail("public_owner_store_reset_capabilities_invalid");
     }
+    if (store.nodeCapabilities().count() != 0 || !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_reset_node_capabilities_invalid");
+    }
     if (store.nodes().readByIndex(0, node_record)) {
         return fail("public_owner_store_reset_node_read_succeeded");
     }
     if (store.capabilities().readByIndex(0, capability_record)) {
         return fail("public_owner_store_reset_capability_read_succeeded");
+    }
+    if (store.nodeCapabilities().readByIndex(0, link_record)) {
+        return fail("public_owner_store_reset_node_capability_read_succeeded");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validatePublicOwnerStoreNodeCapabilityMapOwnership() {
+    PublicOwnerStore store;
+
+    if (store.nodeCapabilities().count() != 0 ||
+        !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_node_capabilities_default_invalid");
+    }
+    if (store.nodeCapabilities().capacity() != NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS) {
+        return fail("public_owner_store_node_capabilities_capacity_invalid");
+    }
+
+    const NodeCapabilityMap& read_only_map = store.nodeCapabilities();
+    PublicNodeCapabilityLink out_link;
+    out_link.link_id = 4001;
+    out_link.node_id = 1001;
+    out_link.capability_instance_id = 7001;
+    out_link.link_visibility_state = PublicVisibilityState::PUBLIC;
+    out_link.link_freshness_state = PublicFreshnessState::FRESH;
+    out_link.diagnostics_available = true;
+    out_link.display_order = 1;
+    out_link.active = true;
+    if (read_only_map.readByIndex(0, out_link)) {
+        return fail("public_owner_store_node_capabilities_read_succeeded");
+    }
+    if (out_link.link_id != 0 ||
+        out_link.node_id != 0 ||
+        out_link.capability_instance_id != 0 ||
+        out_link.link_visibility_state != PublicVisibilityState::NONE ||
+        out_link.link_freshness_state != PublicFreshnessState::UNKNOWN ||
+        out_link.diagnostics_available ||
+        out_link.display_order != 0 ||
+        out_link.active) {
+        return fail("public_owner_store_node_capabilities_read_link_invalid");
+    }
+    if (store.nodeCapabilities().count() != 0 ||
+        !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_node_capabilities_read_mutated");
+    }
+
+    NodeCapabilityMap& mutable_map = store.mutableNodeCapabilities();
+    if (mutable_map.count() != 0 ||
+        !mutable_map.isEmpty() ||
+        mutable_map.capacity() != NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS) {
+        return fail("public_owner_store_mutable_node_capabilities_invalid");
+    }
+    if (mutable_map.readByIndex(0, out_link)) {
+        return fail("public_owner_store_mutable_node_capabilities_read_succeeded");
+    }
+    if (mutable_map.count() != 0 || !mutable_map.isEmpty()) {
+        return fail("public_owner_store_mutable_node_capabilities_mutated");
+    }
+
+    mutable_map.reset();
+    if (store.nodeCapabilities().count() != 0 ||
+        !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_mutable_node_capabilities_reset_invalid");
+    }
+
+    store.reset();
+    if (store.nodeCapabilities().count() != 0 ||
+        !store.nodeCapabilities().isEmpty()) {
+        return fail("public_owner_store_node_capabilities_store_reset_invalid");
+    }
+    if (store.nodeCapabilities().readByIndex(0, out_link)) {
+        return fail("public_owner_store_node_capabilities_store_reset_read_succeeded");
+    }
+    if (out_link.link_id != 0 ||
+        out_link.node_id != 0 ||
+        out_link.capability_instance_id != 0 ||
+        out_link.active) {
+        return fail("public_owner_store_node_capabilities_store_reset_link_invalid");
     }
 
     return true;

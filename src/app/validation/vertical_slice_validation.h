@@ -227,6 +227,7 @@ private:
     bool validateCapabilityDirectoryControlledAddPath();
     bool validateNodeCapabilityMapEmptySkeleton();
     bool validatePublicOwnerStoreEmptySkeleton();
+    bool validatePublicOwnerStoreNodeCapabilityMapOwnership();
     void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;
 };
