@@ -5,6 +5,7 @@
 #include "../../drivers/communication/espnow_transport_driver.h"
 #include "../../logic/logic_status.h"
 #include "../../services/wireless/wireless_packet_transport.h"
+#include "../../../include/cyber32/api/api_snapshot_types.h"
 
 namespace Cyber32 {
 
@@ -337,6 +338,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateApiSnapshotTypesEmptySkeleton()) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -537,6 +542,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validatePublicOwnerStoreNodeCapabilityMapOwnership()) {
+        return false;
+    }
+
+    if (!validateApiSnapshotTypesEmptySkeleton()) {
         return false;
     }
 
@@ -8500,6 +8509,144 @@ bool VerticalSliceValidation::validatePublicOwnerStoreNodeCapabilityMapOwnership
         out_link.capability_instance_id != 0 ||
         out_link.active) {
         return fail("public_owner_store_node_capabilities_store_reset_link_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateApiSnapshotTypesEmptySkeleton() {
+    if (API_SNAPSHOT_CONTRACT_VERSION == 0) {
+        return fail("api_snapshot_contract_version_invalid");
+    }
+    if (API_SNAPSHOT_MAX_NODES == 0 ||
+        API_SNAPSHOT_MAX_NODES != NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return fail("api_snapshot_node_capacity_invalid");
+    }
+    if (API_SNAPSHOT_MAX_CAPABILITIES == 0 ||
+        API_SNAPSHOT_MAX_CAPABILITIES != CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return fail("api_snapshot_capability_capacity_invalid");
+    }
+    if (API_SNAPSHOT_MAX_LINKS == 0 ||
+        API_SNAPSHOT_MAX_LINKS != NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS) {
+        return fail("api_snapshot_link_capacity_invalid");
+    }
+
+    ApiSnapshot snapshot;
+    if (!snapshot.ok || !isSameText(snapshot.error_code, "none") ||
+        snapshot.contract_version != API_SNAPSHOT_CONTRACT_VERSION ||
+        snapshot.status != ApiSnapshotStatus::OK ||
+        snapshot.node_count != 0 ||
+        snapshot.capability_count != 0 ||
+        snapshot.mapping_count != 0 ||
+        snapshot.nodes_truncated ||
+        snapshot.capabilities_truncated ||
+        snapshot.mappings_truncated ||
+        snapshot.broken_link_count != 0) {
+        return fail("api_snapshot_default_invalid");
+    }
+
+    if (snapshot.nodes[0].valid ||
+        snapshot.nodes[0].node_id != 0 ||
+        snapshot.nodes[0].lifecycle_state != PublicLifecycleState::NONE ||
+        snapshot.nodes[0].visibility_state != PublicVisibilityState::NONE ||
+        snapshot.nodes[0].trust_state != PublicTrustState::UNKNOWN ||
+        snapshot.nodes[0].freshness_state != PublicFreshnessState::UNKNOWN ||
+        snapshot.nodes[0].capability_count != 0 ||
+        snapshot.nodes[0].diagnostics_available) {
+        return fail("api_snapshot_default_node_invalid");
+    }
+
+    if (snapshot.capabilities[0].valid ||
+        snapshot.capabilities[0].capability_id != 0 ||
+        snapshot.capabilities[0].capability_instance_id != 0 ||
+        snapshot.capabilities[0].lifecycle_state != PublicLifecycleState::NONE ||
+        snapshot.capabilities[0].visibility_state != PublicVisibilityState::NONE ||
+        snapshot.capabilities[0].value_availability_state != PublicAvailabilityState::UNKNOWN ||
+        snapshot.capabilities[0].freshness_state != PublicFreshnessState::UNKNOWN ||
+        snapshot.capabilities[0].provider_available ||
+        snapshot.capabilities[0].diagnostics_available) {
+        return fail("api_snapshot_default_capability_invalid");
+    }
+
+    if (snapshot.links[0].active ||
+        snapshot.links[0].link_id != 0 ||
+        snapshot.links[0].node_id != 0 ||
+        snapshot.links[0].capability_instance_id != 0 ||
+        snapshot.links[0].link_visibility_state != PublicVisibilityState::NONE ||
+        snapshot.links[0].link_freshness_state != PublicFreshnessState::UNKNOWN ||
+        snapshot.links[0].diagnostics_available ||
+        snapshot.links[0].display_order != 0) {
+        return fail("api_snapshot_default_link_invalid");
+    }
+
+    snapshot.node_count = 1;
+    snapshot.capability_count = 1;
+    snapshot.mapping_count = 1;
+    snapshot.nodes_truncated = true;
+    snapshot.capabilities_truncated = true;
+    snapshot.mappings_truncated = true;
+    snapshot.broken_link_count = 1;
+    snapshot.nodes[0].node_id = 1001;
+    snapshot.nodes[0].valid = true;
+    snapshot.capabilities[0].capability_id = 5001;
+    snapshot.capabilities[0].capability_instance_id = 7001;
+    snapshot.capabilities[0].valid = true;
+    snapshot.links[0].link_id = 9001;
+    snapshot.links[0].node_id = 1001;
+    snapshot.links[0].capability_instance_id = 7001;
+    snapshot.links[0].active = true;
+
+    snapshot.reset();
+    if (!snapshot.ok ||
+        snapshot.node_count != 0 ||
+        snapshot.capability_count != 0 ||
+        snapshot.mapping_count != 0 ||
+        snapshot.nodes_truncated ||
+        snapshot.capabilities_truncated ||
+        snapshot.mappings_truncated ||
+        snapshot.broken_link_count != 0 ||
+        snapshot.nodes[0].valid ||
+        snapshot.nodes[0].node_id != 0 ||
+        snapshot.capabilities[0].valid ||
+        snapshot.capabilities[0].capability_id != 0 ||
+        snapshot.capabilities[0].capability_instance_id != 0 ||
+        snapshot.links[0].active ||
+        snapshot.links[0].link_id != 0 ||
+        snapshot.links[0].node_id != 0 ||
+        snapshot.links[0].capability_instance_id != 0) {
+        return fail("api_snapshot_reset_invalid");
+    }
+
+    ApiSnapshotNodeEntry node_entry;
+    node_entry.node_id = 77;
+    node_entry.valid = true;
+    node_entry.reset();
+    if (node_entry.valid || node_entry.node_id != 0) {
+        return fail("api_snapshot_node_entry_reset_invalid");
+    }
+
+    ApiSnapshotCapabilityEntry capability_entry;
+    capability_entry.capability_id = 88;
+    capability_entry.capability_instance_id = 99;
+    capability_entry.valid = true;
+    capability_entry.reset();
+    if (capability_entry.valid ||
+        capability_entry.capability_id != 0 ||
+        capability_entry.capability_instance_id != 0) {
+        return fail("api_snapshot_capability_entry_reset_invalid");
+    }
+
+    ApiSnapshotLinkEntry link_entry;
+    link_entry.link_id = 111;
+    link_entry.node_id = 222;
+    link_entry.capability_instance_id = 333;
+    link_entry.active = true;
+    link_entry.reset();
+    if (link_entry.active ||
+        link_entry.link_id != 0 ||
+        link_entry.node_id != 0 ||
+        link_entry.capability_instance_id != 0) {
+        return fail("api_snapshot_link_entry_reset_invalid");
     }
 
     return true;
