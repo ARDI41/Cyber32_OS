@@ -5,6 +5,7 @@
 #include "../../drivers/communication/espnow_transport_driver.h"
 #include "../../logic/logic_status.h"
 #include "../../services/wireless/wireless_packet_transport.h"
+#include "../../../include/cyber32/api/api_snapshot_builder.h"
 #include "../../../include/cyber32/api/api_snapshot_types.h"
 
 namespace Cyber32 {
@@ -342,6 +343,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateApiSnapshotBuilderEmptySkeleton()) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -546,6 +551,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateApiSnapshotTypesEmptySkeleton()) {
+        return false;
+    }
+
+    if (!validateApiSnapshotBuilderEmptySkeleton()) {
         return false;
     }
 
@@ -8647,6 +8656,77 @@ bool VerticalSliceValidation::validateApiSnapshotTypesEmptySkeleton() {
         link_entry.node_id != 0 ||
         link_entry.capability_instance_id != 0) {
         return fail("api_snapshot_link_entry_reset_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateApiSnapshotBuilderEmptySkeleton() {
+    ApiSnapshotBuilder builder;
+    ApiSnapshot snapshot;
+
+    snapshot.ok = false;
+    snapshot.error_code = "dirty";
+    snapshot.contract_version = 0;
+    snapshot.status = ApiSnapshotStatus::ERROR;
+    snapshot.node_count = 1;
+    snapshot.capability_count = 1;
+    snapshot.mapping_count = 1;
+    snapshot.nodes_truncated = true;
+    snapshot.capabilities_truncated = true;
+    snapshot.mappings_truncated = true;
+    snapshot.broken_link_count = 1;
+    snapshot.nodes[0].node_id = 1001;
+    snapshot.nodes[0].valid = true;
+    snapshot.capabilities[0].capability_id = 5001;
+    snapshot.capabilities[0].capability_instance_id = 7001;
+    snapshot.capabilities[0].valid = true;
+    snapshot.links[0].link_id = 9001;
+    snapshot.links[0].node_id = 1001;
+    snapshot.links[0].capability_instance_id = 7001;
+    snapshot.links[0].active = true;
+
+    if (!builder.buildEmpty(snapshot)) {
+        return fail("api_snapshot_builder_empty_failed");
+    }
+    if (!snapshot.ok ||
+        !isSameText(snapshot.error_code, "none") ||
+        snapshot.contract_version != API_SNAPSHOT_CONTRACT_VERSION ||
+        snapshot.status != ApiSnapshotStatus::OK ||
+        snapshot.node_count != 0 ||
+        snapshot.capability_count != 0 ||
+        snapshot.mapping_count != 0 ||
+        snapshot.nodes_truncated ||
+        snapshot.capabilities_truncated ||
+        snapshot.mappings_truncated ||
+        snapshot.broken_link_count != 0) {
+        return fail("api_snapshot_builder_empty_state_invalid");
+    }
+    if (snapshot.nodes[0].valid ||
+        snapshot.nodes[0].node_id != 0 ||
+        snapshot.capabilities[0].valid ||
+        snapshot.capabilities[0].capability_id != 0 ||
+        snapshot.capabilities[0].capability_instance_id != 0 ||
+        snapshot.links[0].active ||
+        snapshot.links[0].link_id != 0 ||
+        snapshot.links[0].node_id != 0 ||
+        snapshot.links[0].capability_instance_id != 0) {
+        return fail("api_snapshot_builder_empty_entries_invalid");
+    }
+
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        if (!builder.buildEmpty(snapshot)) {
+            return fail("api_snapshot_builder_repeated_failed");
+        }
+        if (!snapshot.ok ||
+            snapshot.node_count != 0 ||
+            snapshot.capability_count != 0 ||
+            snapshot.mapping_count != 0 ||
+            snapshot.nodes[0].valid ||
+            snapshot.capabilities[0].valid ||
+            snapshot.links[0].active) {
+            return fail("api_snapshot_builder_repeated_invalid");
+        }
     }
 
     return true;
