@@ -313,6 +313,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateCapabilityDirectoryControlledAddPath()) {
+        return false;
+    }
+
     if (!validatePublicOwnerStoreEmptySkeleton()) {
         return false;
     }
@@ -493,6 +497,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateCapabilityDirectoryEmptySkeleton()) {
+        return false;
+    }
+
+    if (!validateCapabilityDirectoryControlledAddPath()) {
         return false;
     }
 
@@ -7672,6 +7680,167 @@ bool VerticalSliceValidation::validateCapabilityDirectoryEmptySkeleton() {
     if (out_record.valid || out_record.capability_id != 0 ||
         out_record.capability_instance_id != 0) {
         return fail("capability_directory_reset_record_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateCapabilityDirectoryControlledAddPath() {
+    CapabilityDirectory directory;
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("capability_directory_add_default_invalid");
+    }
+
+    PublicCapabilityRecord default_record;
+    if (directory.addCapability(default_record)) {
+        return fail("capability_directory_add_default_succeeded");
+    }
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("capability_directory_add_default_mutated");
+    }
+
+    PublicCapabilityRecord test_capability;
+    // Validation-only owner-backed test data. This is not hardware, provider, packet, or Registry data.
+    test_capability.capability_id = 9001;
+    test_capability.capability_instance_id = 7001;
+    test_capability.owner_node_id = 0;
+    test_capability.category = 1;
+    test_capability.lifecycle_state = PublicLifecycleState::AVAILABLE;
+    test_capability.visibility_state = PublicVisibilityState::PUBLIC;
+    test_capability.value_availability_state = PublicAvailabilityState::UNKNOWN;
+    test_capability.freshness_state = PublicFreshnessState::UNKNOWN;
+    test_capability.provider_available = false;
+    test_capability.diagnostics_available = false;
+    test_capability.valid = true;
+
+    if (!directory.addCapability(test_capability)) {
+        return fail("capability_directory_add_valid_failed");
+    }
+    if (directory.count() != 1 || directory.isEmpty()) {
+        return fail("capability_directory_add_valid_count_invalid");
+    }
+
+    PublicCapabilityRecord out_record;
+    if (!directory.readByIndex(0, out_record)) {
+        return fail("capability_directory_add_read_failed");
+    }
+    if (!out_record.valid ||
+        out_record.capability_id != test_capability.capability_id ||
+        out_record.capability_instance_id != test_capability.capability_instance_id ||
+        out_record.owner_node_id != 0 ||
+        out_record.lifecycle_state != test_capability.lifecycle_state ||
+        out_record.visibility_state != test_capability.visibility_state ||
+        out_record.value_availability_state != PublicAvailabilityState::UNKNOWN ||
+        out_record.provider_available ||
+        out_record.diagnostics_available) {
+        return fail("capability_directory_add_read_record_invalid");
+    }
+
+    if (directory.addCapability(test_capability)) {
+        return fail("capability_directory_add_duplicate_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("capability_directory_add_duplicate_mutated");
+    }
+
+    PublicCapabilityRecord invalid_capability = test_capability;
+    invalid_capability.valid = false;
+    invalid_capability.capability_instance_id = 7002;
+    if (directory.addCapability(invalid_capability)) {
+        return fail("capability_directory_add_invalid_valid_flag_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("capability_directory_add_invalid_valid_flag_mutated");
+    }
+
+    invalid_capability = test_capability;
+    invalid_capability.capability_id = 0;
+    invalid_capability.capability_instance_id = 7003;
+    if (directory.addCapability(invalid_capability)) {
+        return fail("capability_directory_add_invalid_capability_id_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("capability_directory_add_invalid_capability_id_mutated");
+    }
+
+    invalid_capability = test_capability;
+    invalid_capability.capability_instance_id = 0;
+    if (directory.addCapability(invalid_capability)) {
+        return fail("capability_directory_add_invalid_instance_id_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("capability_directory_add_invalid_instance_id_mutated");
+    }
+
+    invalid_capability = test_capability;
+    invalid_capability.capability_instance_id = 7004;
+    invalid_capability.lifecycle_state = PublicLifecycleState::NONE;
+    if (directory.addCapability(invalid_capability)) {
+        return fail("capability_directory_add_invalid_lifecycle_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("capability_directory_add_invalid_lifecycle_mutated");
+    }
+
+    invalid_capability = test_capability;
+    invalid_capability.capability_instance_id = 7005;
+    invalid_capability.visibility_state = PublicVisibilityState::NONE;
+    if (directory.addCapability(invalid_capability)) {
+        return fail("capability_directory_add_invalid_visibility_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("capability_directory_add_invalid_visibility_mutated");
+    }
+
+    CapabilityDirectory full_directory;
+    for (PublicCapabilityIndex index = 0; index < CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES; ++index) {
+        PublicCapabilityRecord fill_capability = test_capability;
+        fill_capability.capability_instance_id =
+            static_cast<PublicCapabilityInstanceId>(8000 + index);
+        if (!full_directory.addCapability(fill_capability)) {
+            return fail("capability_directory_add_fill_failed");
+        }
+    }
+    if (full_directory.count() != CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return fail("capability_directory_add_full_count_invalid");
+    }
+
+    PublicCapabilityRecord overflow_capability = test_capability;
+    overflow_capability.capability_instance_id = 9901;
+    if (full_directory.addCapability(overflow_capability)) {
+        return fail("capability_directory_add_full_succeeded");
+    }
+    if (full_directory.count() != CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return fail("capability_directory_add_full_mutated");
+    }
+
+    directory.reset();
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("capability_directory_add_reset_invalid");
+    }
+    if (directory.readByIndex(0, out_record)) {
+        return fail("capability_directory_add_reset_read_succeeded");
+    }
+    if (out_record.valid || out_record.capability_id != 0 ||
+        out_record.capability_instance_id != 0) {
+        return fail("capability_directory_add_reset_record_invalid");
+    }
+
+    PublicOwnerStore store;
+    if (!store.mutableCapabilities().addCapability(test_capability)) {
+        return fail("public_owner_store_mutable_capability_add_failed");
+    }
+    if (store.capabilities().count() != 1) {
+        return fail("public_owner_store_mutable_capability_count_invalid");
+    }
+    if (!store.capabilities().readByIndex(0, out_record) ||
+        out_record.capability_instance_id != test_capability.capability_instance_id ||
+        !out_record.valid) {
+        return fail("public_owner_store_mutable_capability_read_invalid");
+    }
+    store.reset();
+    if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
+        return fail("public_owner_store_mutable_capability_reset_invalid");
     }
 
     return true;

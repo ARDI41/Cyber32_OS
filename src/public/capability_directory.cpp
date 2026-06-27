@@ -35,4 +35,29 @@ bool CapabilityDirectory::readByIndex(PublicCapabilityIndex index, PublicCapabil
     return true;
 }
 
+bool CapabilityDirectory::addCapability(const PublicCapabilityRecord& record) {
+    if (!record.valid ||
+        record.capability_id == 0 ||
+        record.capability_instance_id == 0 ||
+        record.lifecycle_state == PublicLifecycleState::NONE ||
+        record.visibility_state == PublicVisibilityState::NONE) {
+        return false;
+    }
+
+    if (count_ >= CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return false;
+    }
+
+    for (PublicCapabilityIndex index = 0; index < count_; ++index) {
+        if (records_[index].valid &&
+            records_[index].capability_instance_id == record.capability_instance_id) {
+            return false;
+        }
+    }
+
+    records_[count_] = record;
+    ++count_;
+    return true;
+}
+
 }  // namespace Cyber32

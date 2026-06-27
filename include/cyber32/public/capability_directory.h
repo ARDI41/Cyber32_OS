@@ -19,6 +19,7 @@ public:
     PublicCapabilityIndex capacity() const;
     bool isEmpty() const;
     bool readByIndex(PublicCapabilityIndex index, PublicCapabilityRecord& out_record) const;
+    bool addCapability(const PublicCapabilityRecord& record);
 
 private:
     PublicCapabilityRecord records_[CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES];
