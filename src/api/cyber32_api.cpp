@@ -30,6 +30,48 @@ bool readApiCapabilityRecord(uint8_t capability_index, PublicCapabilityRecord& o
         out_record);
 }
 
+bool findApiCapabilityRecordByInstanceId(
+    PublicCapabilityInstanceId capability_instance_id,
+    PublicCapabilityRecord& out_record) {
+    out_record.reset();
+    if (capability_instance_id == 0) {
+        return false;
+    }
+
+    const CapabilityDirectory& capabilities = apiPublicOwnerStore().capabilities();
+    for (PublicCapabilityIndex index = 0; index < capabilities.count(); ++index) {
+        PublicCapabilityRecord candidate;
+        if (capabilities.readByIndex(index, candidate) &&
+            candidate.valid &&
+            candidate.capability_instance_id == capability_instance_id) {
+            out_record = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void resetApiNodeCapabilitySummary(ApiNodeCapabilitySummary& out_summary) {
+    out_summary.ok = false;
+    out_summary.error_code = "node_not_found";
+    out_summary.capability_count = 0;
+    out_summary.primary_capability_id = 0;
+    out_summary.has_primary_capability = false;
+}
+
+void fillMappedNodeCapabilitySummary(
+    const PublicCapabilityRecord& capability_record,
+    ApiNodeCapabilitySummary& out_summary) {
+    out_summary.ok = true;
+    out_summary.error_code = "none";
+    // ApiNodeCapabilitySummary has no numeric capability-instance field yet.
+    // Keep identity text unset instead of fabricating CAP_* names or strings.
+    out_summary.capability_count = capability_record.valid ? 1 : 0;
+    out_summary.primary_capability_id = 0;
+    out_summary.has_primary_capability = false;
+}
+
 }  // namespace
 
 static bool isApiTextPresent(const char* value) {
@@ -315,7 +357,34 @@ bool Cyber32Api::getNodeCapabilities(
         return false;
     }
 
-    return false;
+    if (max_count == 0) {
+        return true;
+    }
+
+    const NodeCapabilityMap& node_capabilities = apiPublicOwnerStore().nodeCapabilities();
+    for (uint8_t index = 0; index < node_capabilities.count(); ++index) {
+        PublicNodeCapabilityLink link;
+        if (!node_capabilities.readByIndex(index, link)) {
+            continue;
+        }
+        if (!link.active || link.node_id != node_record.node_id) {
+            continue;
+        }
+
+        PublicCapabilityRecord capability_record;
+        if (!findApiCapabilityRecordByInstanceId(link.capability_instance_id, capability_record)) {
+            continue;
+        }
+
+        resetApiNodeCapabilitySummary(out_capabilities[out_count]);
+        fillMappedNodeCapabilitySummary(capability_record, out_capabilities[out_count]);
+        ++out_count;
+        if (out_count >= max_count) {
+            return true;
+        }
+    }
+
+    return true;
 }
 
 bool Cyber32Api::getCapabilityList(ApiCapabilityList& out_response) {

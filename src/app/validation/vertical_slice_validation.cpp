@@ -1280,12 +1280,24 @@ bool VerticalSliceValidation::validateApiState() {
     }
 
     ApiNodeCapabilitySummary node_capabilities[2];
+    node_capabilities[0].ok = true;
+    node_capabilities[0].error_code = "sentinel";
+    node_capabilities[0].capability_count = 77;
+    node_capabilities[0].primary_capability_id = "sentinel";
+    node_capabilities[0].has_primary_capability = true;
     uint8_t node_capability_count = 99;
     if (api_.getNodeCapabilities(0, node_capabilities, 2, node_capability_count)) {
         return fail("api_node_capabilities_unexpected_success");
     }
     if (node_capability_count != 0) {
         return fail("api_node_capabilities_count_invalid");
+    }
+    if (!node_capabilities[0].ok ||
+        !isSameText(node_capabilities[0].error_code, "sentinel") ||
+        node_capabilities[0].capability_count != 77 ||
+        !isSameText(node_capabilities[0].primary_capability_id, "sentinel") ||
+        !node_capabilities[0].has_primary_capability) {
+        return fail("api_node_capabilities_missing_node_wrote_buffer");
     }
 
     uint8_t node_capability_count_repeat = 99;
