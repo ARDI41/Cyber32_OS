@@ -31,6 +31,7 @@
 #include "../../services/wireless/wireless_service.h"
 #include "../../../include/cyber32/public/capability_directory.h"
 #include "../../../include/cyber32/public/node_directory.h"
+#include "../../../include/cyber32/public/node_capability_map.h"
 #include "../../../include/cyber32/public/public_owner_store.h"
 #include "../../../include/cyber32/public/public_owner_types.h"
 
@@ -224,6 +225,7 @@ private:
     bool validateNodeDirectoryControlledAddPath();
     bool validateCapabilityDirectoryEmptySkeleton();
     bool validateCapabilityDirectoryControlledAddPath();
+    bool validateNodeCapabilityMapEmptySkeleton();
     bool validatePublicOwnerStoreEmptySkeleton();
     void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;

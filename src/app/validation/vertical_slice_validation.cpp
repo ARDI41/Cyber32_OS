@@ -317,6 +317,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateNodeCapabilityMapEmptySkeleton()) {
+        return false;
+    }
+
     if (!validatePublicOwnerStoreEmptySkeleton()) {
         return false;
     }
@@ -501,6 +505,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateCapabilityDirectoryControlledAddPath()) {
+        return false;
+    }
+
+    if (!validateNodeCapabilityMapEmptySkeleton()) {
         return false;
     }
 
@@ -7841,6 +7849,96 @@ bool VerticalSliceValidation::validateCapabilityDirectoryControlledAddPath() {
     store.reset();
     if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
         return fail("public_owner_store_mutable_capability_reset_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateNodeCapabilityMapEmptySkeleton() {
+    NodeCapabilityMap map;
+    if (map.count() != 0) {
+        return fail("node_capability_map_default_count_invalid");
+    }
+    if (!map.isEmpty()) {
+        return fail("node_capability_map_default_not_empty");
+    }
+    if (map.capacity() == 0 ||
+        map.capacity() != NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS) {
+        return fail("node_capability_map_capacity_invalid");
+    }
+
+    PublicNodeCapabilityLink out_link;
+    out_link.link_id = 44;
+    out_link.node_id = 1001;
+    out_link.capability_instance_id = 7001;
+    out_link.link_visibility_state = PublicVisibilityState::PUBLIC;
+    out_link.link_freshness_state = PublicFreshnessState::FRESH;
+    out_link.diagnostics_available = true;
+    out_link.display_order = 1;
+    out_link.active = true;
+    if (map.readByIndex(0, out_link)) {
+        return fail("node_capability_map_empty_read_succeeded");
+    }
+    if (out_link.link_id != 0 ||
+        out_link.node_id != 0 ||
+        out_link.capability_instance_id != 0 ||
+        out_link.link_visibility_state != PublicVisibilityState::NONE ||
+        out_link.link_freshness_state != PublicFreshnessState::UNKNOWN ||
+        out_link.diagnostics_available ||
+        out_link.display_order != 0 ||
+        out_link.active) {
+        return fail("node_capability_map_empty_read_link_invalid");
+    }
+    if (map.count() != 0 || !map.isEmpty()) {
+        return fail("node_capability_map_empty_read_mutated");
+    }
+
+    if (map.readByIndex(map.capacity(), out_link)) {
+        return fail("node_capability_map_out_of_range_read_succeeded");
+    }
+    if (out_link.link_id != 0 ||
+        out_link.node_id != 0 ||
+        out_link.capability_instance_id != 0 ||
+        out_link.active) {
+        return fail("node_capability_map_out_of_range_link_invalid");
+    }
+    if (map.count() != 0) {
+        return fail("node_capability_map_out_of_range_mutated");
+    }
+
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        out_link.link_id = 55;
+        out_link.node_id = 2002;
+        out_link.capability_instance_id = 8002;
+        out_link.active = true;
+        if (map.readByIndex(0, out_link)) {
+            return fail("node_capability_map_repeated_empty_read_succeeded");
+        }
+        if (map.count() != 0 || !map.isEmpty() ||
+            out_link.link_id != 0 ||
+            out_link.node_id != 0 ||
+            out_link.capability_instance_id != 0 ||
+            out_link.active) {
+            return fail("node_capability_map_repeated_empty_read_mutated");
+        }
+    }
+
+    map.reset();
+    if (map.count() != 0 || !map.isEmpty()) {
+        return fail("node_capability_map_reset_invalid");
+    }
+    out_link.link_id = 66;
+    out_link.node_id = 3003;
+    out_link.capability_instance_id = 9003;
+    out_link.active = true;
+    if (map.readByIndex(0, out_link)) {
+        return fail("node_capability_map_reset_read_succeeded");
+    }
+    if (out_link.link_id != 0 ||
+        out_link.node_id != 0 ||
+        out_link.capability_instance_id != 0 ||
+        out_link.active) {
+        return fail("node_capability_map_reset_link_invalid");
     }
 
     return true;
