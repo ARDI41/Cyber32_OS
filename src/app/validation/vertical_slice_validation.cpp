@@ -309,6 +309,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validatePublicOwnerStoreEmptySkeleton()) {
+        return false;
+    }
+
     passed_ = true;
     last_error_ = "none";
     return true;
@@ -481,6 +485,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateCapabilityDirectoryEmptySkeleton()) {
+        return false;
+    }
+
+    if (!validatePublicOwnerStoreEmptySkeleton()) {
         return false;
     }
 
@@ -7510,6 +7518,81 @@ bool VerticalSliceValidation::validateCapabilityDirectoryEmptySkeleton() {
     if (out_record.valid || out_record.capability_id != 0 ||
         out_record.capability_instance_id != 0) {
         return fail("capability_directory_reset_record_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validatePublicOwnerStoreEmptySkeleton() {
+    PublicOwnerStore store;
+    if (store.nodes().count() != 0 || !store.nodes().isEmpty()) {
+        return fail("public_owner_store_default_nodes_invalid");
+    }
+    if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
+        return fail("public_owner_store_default_capabilities_invalid");
+    }
+    if (store.nodes().capacity() != NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return fail("public_owner_store_node_capacity_invalid");
+    }
+    if (store.capabilities().capacity() != CAPABILITY_DIRECTORY_MAX_PUBLIC_CAPABILITIES) {
+        return fail("public_owner_store_capability_capacity_invalid");
+    }
+
+    PublicNodeRecord node_record;
+    node_record.node_id = 1001;
+    node_record.valid = true;
+    if (store.nodes().readByIndex(0, node_record)) {
+        return fail("public_owner_store_empty_node_read_succeeded");
+    }
+    if (node_record.valid || node_record.node_id != 0) {
+        return fail("public_owner_store_empty_node_record_invalid");
+    }
+    if (store.nodes().count() != 0 || !store.nodes().isEmpty()) {
+        return fail("public_owner_store_node_read_mutated");
+    }
+
+    PublicCapabilityRecord capability_record;
+    if (store.capabilities().readByIndex(0, capability_record)) {
+        return fail("public_owner_store_empty_capability_read_succeeded");
+    }
+    if (capability_record.valid || capability_record.capability_id != 0 ||
+        capability_record.capability_instance_id != 0) {
+        return fail("public_owner_store_empty_capability_record_invalid");
+    }
+    if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
+        return fail("public_owner_store_capability_read_mutated");
+    }
+
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+        const NodeDirectory& nodes = store.nodes();
+        const CapabilityDirectory& capabilities = store.capabilities();
+        if (nodes.count() != 0 || !nodes.isEmpty() ||
+            capabilities.count() != 0 || !capabilities.isEmpty()) {
+            return fail("public_owner_store_repeated_read_mutated");
+        }
+    }
+
+    NodeDirectory& mutable_nodes = store.mutableNodes();
+    CapabilityDirectory& mutable_capabilities = store.mutableCapabilities();
+    if (mutable_nodes.count() != 0 || !mutable_nodes.isEmpty()) {
+        return fail("public_owner_store_mutable_nodes_created_record");
+    }
+    if (mutable_capabilities.count() != 0 || !mutable_capabilities.isEmpty()) {
+        return fail("public_owner_store_mutable_capabilities_created_record");
+    }
+
+    store.reset();
+    if (store.nodes().count() != 0 || !store.nodes().isEmpty()) {
+        return fail("public_owner_store_reset_nodes_invalid");
+    }
+    if (store.capabilities().count() != 0 || !store.capabilities().isEmpty()) {
+        return fail("public_owner_store_reset_capabilities_invalid");
+    }
+    if (store.nodes().readByIndex(0, node_record)) {
+        return fail("public_owner_store_reset_node_read_succeeded");
+    }
+    if (store.capabilities().readByIndex(0, capability_record)) {
+        return fail("public_owner_store_reset_capability_read_succeeded");
     }
 
     return true;

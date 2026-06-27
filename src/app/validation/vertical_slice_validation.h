@@ -31,6 +31,7 @@
 #include "../../services/wireless/wireless_service.h"
 #include "../../../include/cyber32/public/capability_directory.h"
 #include "../../../include/cyber32/public/node_directory.h"
+#include "../../../include/cyber32/public/public_owner_store.h"
 #include "../../../include/cyber32/public/public_owner_types.h"
 
 namespace Cyber32 {
@@ -221,6 +222,7 @@ private:
     bool validatePublicOwnerTypeDefaults();
     bool validateNodeDirectoryEmptySkeleton();
     bool validateCapabilityDirectoryEmptySkeleton();
+    bool validatePublicOwnerStoreEmptySkeleton();
     void copyWirelessCapabilityId(char* destination, const char* source) const;
     bool isSameText(const char* left, const char* right) const;
 };
