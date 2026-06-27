@@ -2,6 +2,18 @@
 
 namespace Cyber32 {
 
+namespace {
+
+bool isValidNodeCapabilityLink(const PublicNodeCapabilityLink& link) {
+    return link.link_id != 0 &&
+           link.node_id != 0 &&
+           link.capability_instance_id != 0 &&
+           link.link_visibility_state != PublicVisibilityState::NONE &&
+           link.active;
+}
+
+}  // namespace
+
 NodeCapabilityMap::NodeCapabilityMap() {
     reset();
 }
@@ -32,6 +44,29 @@ bool NodeCapabilityMap::readByIndex(uint8_t index, PublicNodeCapabilityLink& out
     }
 
     out_link = links_[index];
+    return true;
+}
+
+bool NodeCapabilityMap::addLink(const PublicNodeCapabilityLink& link) {
+    if (!isValidNodeCapabilityLink(link)) {
+        return false;
+    }
+    if (count_ >= NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS) {
+        return false;
+    }
+
+    for (uint8_t index = 0; index < count_; ++index) {
+        if (links_[index].link_id == link.link_id) {
+            return false;
+        }
+        if (links_[index].node_id == link.node_id &&
+            links_[index].capability_instance_id == link.capability_instance_id) {
+            return false;
+        }
+    }
+
+    links_[count_] = link;
+    ++count_;
     return true;
 }
 

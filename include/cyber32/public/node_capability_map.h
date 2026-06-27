@@ -19,6 +19,7 @@ public:
     uint8_t capacity() const;
     bool isEmpty() const;
     bool readByIndex(uint8_t index, PublicNodeCapabilityLink& out_link) const;
+    bool addLink(const PublicNodeCapabilityLink& link);
 
 private:
     PublicNodeCapabilityLink links_[NODE_CAPABILITY_MAP_MAX_PUBLIC_LINKS];

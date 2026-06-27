@@ -226,6 +226,7 @@ private:
     bool validateCapabilityDirectoryEmptySkeleton();
     bool validateCapabilityDirectoryControlledAddPath();
     bool validateNodeCapabilityMapEmptySkeleton();
+    bool validateNodeCapabilityMapControlledAddLink();
     bool validatePublicOwnerStoreEmptySkeleton();
     bool validatePublicOwnerStoreNodeCapabilityMapOwnership();
     void copyWirelessCapabilityId(char* destination, const char* source) const;
