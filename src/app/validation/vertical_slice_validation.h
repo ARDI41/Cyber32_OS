@@ -221,6 +221,7 @@ private:
     bool validateCapabilityProviderStorage(uint32_t now_ms);
     bool validatePublicOwnerTypeDefaults();
     bool validateNodeDirectoryEmptySkeleton();
+    bool validateNodeDirectoryControlledAddPath();
     bool validateCapabilityDirectoryEmptySkeleton();
     bool validatePublicOwnerStoreEmptySkeleton();
     void copyWirelessCapabilityId(char* destination, const char* source) const;

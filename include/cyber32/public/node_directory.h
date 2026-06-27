@@ -19,6 +19,7 @@ public:
     PublicNodeIndex capacity() const;
     bool isEmpty() const;
     bool readByIndex(PublicNodeIndex index, PublicNodeRecord& out_record) const;
+    bool addNode(const PublicNodeRecord& record);
 
 private:
     PublicNodeRecord records_[NODE_DIRECTORY_MAX_PUBLIC_NODES];

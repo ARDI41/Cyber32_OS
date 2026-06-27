@@ -305,6 +305,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateNodeDirectoryControlledAddPath()) {
+        return false;
+    }
+
     if (!validateCapabilityDirectoryEmptySkeleton()) {
         return false;
     }
@@ -481,6 +485,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateNodeDirectoryEmptySkeleton()) {
+        return false;
+    }
+
+    if (!validateNodeDirectoryControlledAddPath()) {
         return false;
     }
 
@@ -7440,6 +7448,152 @@ bool VerticalSliceValidation::validateNodeDirectoryEmptySkeleton() {
     }
     if (out_record.valid || out_record.node_id != 0) {
         return fail("node_directory_reset_record_invalid");
+    }
+
+    return true;
+}
+
+bool VerticalSliceValidation::validateNodeDirectoryControlledAddPath() {
+    NodeDirectory directory;
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("node_directory_add_default_invalid");
+    }
+
+    PublicNodeRecord default_record;
+    if (directory.addNode(default_record)) {
+        return fail("node_directory_add_default_succeeded");
+    }
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("node_directory_add_default_mutated");
+    }
+
+    PublicNodeRecord test_node;
+    // Validation-only owner-backed test data. This is not discovery, hardware, or packet data.
+    test_node.node_id = 1001;
+    test_node.source_type = 1;
+    test_node.lifecycle_state = PublicLifecycleState::AVAILABLE;
+    test_node.visibility_state = PublicVisibilityState::PUBLIC;
+    test_node.trust_state = PublicTrustState::UNKNOWN;
+    test_node.capability_count = 0;
+    test_node.freshness_state = PublicFreshnessState::UNKNOWN;
+    test_node.diagnostics_available = false;
+    test_node.last_seen_ms = 0;
+    test_node.valid = true;
+
+    if (!directory.addNode(test_node)) {
+        return fail("node_directory_add_valid_failed");
+    }
+    if (directory.count() != 1 || directory.isEmpty()) {
+        return fail("node_directory_add_valid_count_invalid");
+    }
+
+    PublicNodeRecord out_record;
+    if (!directory.readByIndex(0, out_record)) {
+        return fail("node_directory_add_read_failed");
+    }
+    if (!out_record.valid ||
+        out_record.node_id != test_node.node_id ||
+        out_record.source_type != test_node.source_type ||
+        out_record.lifecycle_state != test_node.lifecycle_state ||
+        out_record.visibility_state != test_node.visibility_state ||
+        out_record.capability_count != 0 ||
+        out_record.diagnostics_available) {
+        return fail("node_directory_add_read_record_invalid");
+    }
+
+    if (directory.addNode(test_node)) {
+        return fail("node_directory_add_duplicate_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("node_directory_add_duplicate_mutated");
+    }
+
+    PublicNodeRecord invalid_node = test_node;
+    invalid_node.valid = false;
+    invalid_node.node_id = 2002;
+    if (directory.addNode(invalid_node)) {
+        return fail("node_directory_add_invalid_valid_flag_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("node_directory_add_invalid_valid_flag_mutated");
+    }
+
+    invalid_node = test_node;
+    invalid_node.node_id = 0;
+    if (directory.addNode(invalid_node)) {
+        return fail("node_directory_add_invalid_node_id_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("node_directory_add_invalid_node_id_mutated");
+    }
+
+    invalid_node = test_node;
+    invalid_node.node_id = 2003;
+    invalid_node.lifecycle_state = PublicLifecycleState::NONE;
+    if (directory.addNode(invalid_node)) {
+        return fail("node_directory_add_invalid_lifecycle_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("node_directory_add_invalid_lifecycle_mutated");
+    }
+
+    invalid_node = test_node;
+    invalid_node.node_id = 2004;
+    invalid_node.visibility_state = PublicVisibilityState::NONE;
+    if (directory.addNode(invalid_node)) {
+        return fail("node_directory_add_invalid_visibility_succeeded");
+    }
+    if (directory.count() != 1) {
+        return fail("node_directory_add_invalid_visibility_mutated");
+    }
+
+    NodeDirectory full_directory;
+    for (PublicNodeIndex index = 0; index < NODE_DIRECTORY_MAX_PUBLIC_NODES; ++index) {
+        PublicNodeRecord fill_node = test_node;
+        fill_node.node_id = static_cast<PublicNodeId>(3000 + index);
+        if (!full_directory.addNode(fill_node)) {
+            return fail("node_directory_add_fill_failed");
+        }
+    }
+    if (full_directory.count() != NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return fail("node_directory_add_full_count_invalid");
+    }
+
+    PublicNodeRecord overflow_node = test_node;
+    overflow_node.node_id = 9001;
+    if (full_directory.addNode(overflow_node)) {
+        return fail("node_directory_add_full_succeeded");
+    }
+    if (full_directory.count() != NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return fail("node_directory_add_full_mutated");
+    }
+
+    directory.reset();
+    if (directory.count() != 0 || !directory.isEmpty()) {
+        return fail("node_directory_add_reset_invalid");
+    }
+    if (directory.readByIndex(0, out_record)) {
+        return fail("node_directory_add_reset_read_succeeded");
+    }
+    if (out_record.valid || out_record.node_id != 0) {
+        return fail("node_directory_add_reset_record_invalid");
+    }
+
+    PublicOwnerStore store;
+    if (!store.mutableNodes().addNode(test_node)) {
+        return fail("public_owner_store_mutable_node_add_failed");
+    }
+    if (store.nodes().count() != 1) {
+        return fail("public_owner_store_mutable_node_count_invalid");
+    }
+    if (!store.nodes().readByIndex(0, out_record) ||
+        out_record.node_id != test_node.node_id ||
+        !out_record.valid) {
+        return fail("public_owner_store_mutable_node_read_invalid");
+    }
+    store.reset();
+    if (store.nodes().count() != 0 || !store.nodes().isEmpty()) {
+        return fail("public_owner_store_mutable_node_reset_invalid");
     }
 
     return true;

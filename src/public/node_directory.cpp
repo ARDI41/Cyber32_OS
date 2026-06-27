@@ -35,4 +35,27 @@ bool NodeDirectory::readByIndex(PublicNodeIndex index, PublicNodeRecord& out_rec
     return true;
 }
 
+bool NodeDirectory::addNode(const PublicNodeRecord& record) {
+    if (!record.valid ||
+        record.node_id == 0 ||
+        record.lifecycle_state == PublicLifecycleState::NONE ||
+        record.visibility_state == PublicVisibilityState::NONE) {
+        return false;
+    }
+
+    if (count_ >= NODE_DIRECTORY_MAX_PUBLIC_NODES) {
+        return false;
+    }
+
+    for (PublicNodeIndex index = 0; index < count_; ++index) {
+        if (records_[index].valid && records_[index].node_id == record.node_id) {
+            return false;
+        }
+    }
+
+    records_[count_] = record;
+    ++count_;
+    return true;
+}
+
 }  // namespace Cyber32
