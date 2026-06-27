@@ -253,6 +253,10 @@ bool VerticalSliceValidation::runOnce(uint32_t now_ms) {
         return false;
     }
 
+    if (!validateGetNodeCapabilitiesOwnerBackedPositivePath()) {
+        return false;
+    }
+
     if (!validateServoCommandState(now_ms)) {
         return false;
     }
@@ -449,6 +453,10 @@ bool VerticalSliceValidation::runOnceWithRuntime(uint32_t now_ms) {
     }
 
     if (!validateApiState()) {
+        return false;
+    }
+
+    if (!validateGetNodeCapabilitiesOwnerBackedPositivePath()) {
         return false;
     }
 
@@ -1585,6 +1593,190 @@ bool VerticalSliceValidation::validateApiState() {
         return fail("api_relay_not_ok");
     }
     return validateRelayPayload(state.payload, false);
+}
+
+bool VerticalSliceValidation::validateGetNodeCapabilitiesOwnerBackedPositivePath() {
+    ApiNodeCapabilitySummary out_capabilities[2];
+    uint8_t out_count = 99;
+
+    Cyber32Api default_api;
+    if (default_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_default_unexpected_success");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_default_count_invalid");
+    }
+
+    PublicOwnerStore empty_store;
+    Cyber32Api empty_api(empty_store);
+    out_count = 99;
+    if (empty_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_empty_unexpected_success");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_empty_count_invalid");
+    }
+
+    PublicNodeRecord test_node;
+    test_node.node_id = 1001;
+    test_node.source_type = 1;
+    test_node.lifecycle_state = PublicLifecycleState::AVAILABLE;
+    test_node.visibility_state = PublicVisibilityState::PUBLIC;
+    test_node.trust_state = PublicTrustState::TRUSTED;
+    test_node.capability_count = 0;
+    test_node.freshness_state = PublicFreshnessState::FRESH;
+    test_node.diagnostics_available = false;
+    test_node.last_seen_ms = 0;
+    test_node.valid = true;
+
+    PublicCapabilityRecord test_capability;
+    test_capability.capability_id = 5001;
+    test_capability.capability_instance_id = 7001;
+    test_capability.owner_node_id = 0;
+    test_capability.category = 1;
+    test_capability.lifecycle_state = PublicLifecycleState::AVAILABLE;
+    test_capability.visibility_state = PublicVisibilityState::PUBLIC;
+    test_capability.value_availability_state = PublicAvailabilityState::UNKNOWN;
+    test_capability.freshness_state = PublicFreshnessState::UNKNOWN;
+    test_capability.provider_available = false;
+    test_capability.diagnostics_available = false;
+    test_capability.valid = true;
+
+    PublicNodeCapabilityLink test_link;
+    test_link.link_id = 9001;
+    test_link.node_id = test_node.node_id;
+    test_link.capability_instance_id = test_capability.capability_instance_id;
+    test_link.link_visibility_state = PublicVisibilityState::PUBLIC;
+    test_link.link_freshness_state = PublicFreshnessState::FRESH;
+    test_link.diagnostics_available = false;
+    test_link.display_order = 1;
+    test_link.active = true;
+
+    PublicOwnerStore node_only_store;
+    if (!node_only_store.mutableNodes().addNode(test_node)) {
+        return fail("api_owner_injection_node_seed_failed");
+    }
+    Cyber32Api node_only_api(node_only_store);
+    out_capabilities[0].capability_count = 77;
+    out_count = 99;
+    if (!node_only_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_node_only_failed");
+    }
+    if (out_count != 0 || out_capabilities[0].capability_count != 77) {
+        return fail("api_owner_injection_node_only_invalid");
+    }
+
+    if (!node_only_store.mutableCapabilities().addCapability(test_capability)) {
+        return fail("api_owner_injection_capability_seed_failed");
+    }
+    out_count = 99;
+    if (!node_only_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_no_link_failed");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_no_link_count_invalid");
+    }
+
+    PublicNodeRecord other_node = test_node;
+    other_node.node_id = 1002;
+    if (!node_only_store.mutableNodes().addNode(other_node)) {
+        return fail("api_owner_injection_other_node_seed_failed");
+    }
+    PublicCapabilityRecord other_capability = test_capability;
+    other_capability.capability_id = 5002;
+    other_capability.capability_instance_id = 7002;
+    if (!node_only_store.mutableCapabilities().addCapability(other_capability)) {
+        return fail("api_owner_injection_other_capability_seed_failed");
+    }
+    PublicNodeCapabilityLink other_link = test_link;
+    other_link.link_id = 9002;
+    other_link.node_id = other_node.node_id;
+    other_link.capability_instance_id = other_capability.capability_instance_id;
+    if (!node_only_store.mutableNodeCapabilities().addLink(other_link)) {
+        return fail("api_owner_injection_other_link_seed_failed");
+    }
+    out_count = 99;
+    if (!node_only_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_unrelated_link_failed");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_unrelated_link_returned");
+    }
+
+    if (!node_only_store.mutableNodeCapabilities().addLink(test_link)) {
+        return fail("api_owner_injection_link_seed_failed");
+    }
+    out_count = 99;
+    if (!node_only_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_mapped_failed");
+    }
+    if (out_count != 1 ||
+        !out_capabilities[0].ok ||
+        !isSameText(out_capabilities[0].error_code, "none") ||
+        out_capabilities[0].capability_count != 1 ||
+        out_capabilities[0].primary_capability_id != 0 ||
+        out_capabilities[0].has_primary_capability) {
+        return fail("api_owner_injection_mapped_summary_invalid");
+    }
+
+    PublicCapabilityRecord second_capability = test_capability;
+    second_capability.capability_id = 5003;
+    second_capability.capability_instance_id = 7003;
+    if (!node_only_store.mutableCapabilities().addCapability(second_capability)) {
+        return fail("api_owner_injection_second_capability_seed_failed");
+    }
+    PublicNodeCapabilityLink second_link = test_link;
+    second_link.link_id = 9003;
+    second_link.capability_instance_id = second_capability.capability_instance_id;
+    second_link.display_order = 2;
+    if (!node_only_store.mutableNodeCapabilities().addLink(second_link)) {
+        return fail("api_owner_injection_second_link_seed_failed");
+    }
+    out_count = 99;
+    if (!node_only_api.getNodeCapabilities(0, out_capabilities, 1, out_count)) {
+        return fail("api_owner_injection_capacity_failed");
+    }
+    if (out_count != 1) {
+        return fail("api_owner_injection_capacity_count_invalid");
+    }
+
+    PublicOwnerStore broken_link_store;
+    if (!broken_link_store.mutableNodes().addNode(test_node)) {
+        return fail("api_owner_injection_broken_node_seed_failed");
+    }
+    PublicNodeCapabilityLink broken_link = test_link;
+    broken_link.capability_instance_id = 9999;
+    if (!broken_link_store.mutableNodeCapabilities().addLink(broken_link)) {
+        return fail("api_owner_injection_broken_link_seed_failed");
+    }
+    Cyber32Api broken_link_api(broken_link_store);
+    out_count = 99;
+    if (!broken_link_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_broken_link_failed");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_broken_link_returned");
+    }
+
+    node_only_store.reset();
+    out_count = 99;
+    if (node_only_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_reset_unexpected_success");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_reset_count_invalid");
+    }
+
+    Cyber32Api default_after_api;
+    out_count = 99;
+    if (default_after_api.getNodeCapabilities(0, out_capabilities, 2, out_count)) {
+        return fail("api_owner_injection_default_after_unexpected_success");
+    }
+    if (out_count != 0) {
+        return fail("api_owner_injection_default_after_count_invalid");
+    }
+
+    return true;
 }
 
 bool VerticalSliceValidation::validateServoCommandState(uint32_t now_ms) {

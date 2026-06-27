@@ -18,19 +18,26 @@ PublicOwnerStore& apiPublicOwnerStore() {
     return store;
 }
 
-bool readApiNodeRecord(uint8_t node_index, PublicNodeRecord& out_record) {
-    return apiPublicOwnerStore().nodes().readByIndex(
+bool readApiNodeRecord(
+    const PublicOwnerStore& owner_store,
+    uint8_t node_index,
+    PublicNodeRecord& out_record) {
+    return owner_store.nodes().readByIndex(
         static_cast<PublicNodeIndex>(node_index),
         out_record);
 }
 
-bool readApiCapabilityRecord(uint8_t capability_index, PublicCapabilityRecord& out_record) {
-    return apiPublicOwnerStore().capabilities().readByIndex(
+bool readApiCapabilityRecord(
+    const PublicOwnerStore& owner_store,
+    uint8_t capability_index,
+    PublicCapabilityRecord& out_record) {
+    return owner_store.capabilities().readByIndex(
         static_cast<PublicCapabilityIndex>(capability_index),
         out_record);
 }
 
 bool findApiCapabilityRecordByInstanceId(
+    const PublicOwnerStore& owner_store,
     PublicCapabilityInstanceId capability_instance_id,
     PublicCapabilityRecord& out_record) {
     out_record.reset();
@@ -38,7 +45,7 @@ bool findApiCapabilityRecordByInstanceId(
         return false;
     }
 
-    const CapabilityDirectory& capabilities = apiPublicOwnerStore().capabilities();
+    const CapabilityDirectory& capabilities = owner_store.capabilities();
     for (PublicCapabilityIndex index = 0; index < capabilities.count(); ++index) {
         PublicCapabilityRecord candidate;
         if (capabilities.readByIndex(index, candidate) &&
@@ -81,6 +88,16 @@ static bool isApiTextPresent(const char* value) {
 Cyber32Api::Cyber32Api()
     : registry_(0),
       runtime_(0),
+      public_owner_store_(&apiPublicOwnerStore()),
+      servo_service_(0),
+      motor_service_(0),
+      relay_service_(0) {
+}
+
+Cyber32Api::Cyber32Api(PublicOwnerStore& owner_store)
+    : registry_(0),
+      runtime_(0),
+      public_owner_store_(&owner_store),
       servo_service_(0),
       motor_service_(0),
       relay_service_(0) {
@@ -211,13 +228,13 @@ bool Cyber32Api::getSystemSummary(ApiSystemSummary& out_response) {
 bool Cyber32Api::getNodeList(ApiNodeList& out_response) {
     out_response.ok = true;
     out_response.error_code = "none";
-    out_response.count = apiPublicOwnerStore().nodes().count();
+    out_response.count = public_owner_store_->nodes().count();
     return true;
 }
 
 bool Cyber32Api::getNodeSummary(uint8_t node_index, ApiNodeSummary& out_response) {
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         return false;
@@ -230,7 +247,7 @@ bool Cyber32Api::getNodeSummary(uint8_t node_index, ApiNodeSummary& out_response
 
 bool Cyber32Api::getNodeIdentity(uint8_t node_index, ApiNodeIdentity& out_response) {
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.node_id = 0;
@@ -257,7 +274,7 @@ bool Cyber32Api::getNodeIdentity(uint8_t node_index, ApiNodeIdentity& out_respon
 
 bool Cyber32Api::getNodeStatus(uint8_t node_index, ApiNodeStatus& out_response) {
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.online = false;
@@ -282,7 +299,7 @@ bool Cyber32Api::getNodeStatus(uint8_t node_index, ApiNodeStatus& out_response) 
 
 bool Cyber32Api::getNodePower(uint8_t node_index, ApiNodePower& out_response) {
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.battery_percent = 0;
@@ -303,7 +320,7 @@ bool Cyber32Api::getNodePower(uint8_t node_index, ApiNodePower& out_response) {
 
 bool Cyber32Api::getNodeSignal(uint8_t node_index, ApiNodeSignal& out_response) {
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.rssi = 0;
@@ -322,7 +339,7 @@ bool Cyber32Api::getNodeSignal(uint8_t node_index, ApiNodeSignal& out_response) 
 
 bool Cyber32Api::getNodeDiagnostics(uint8_t node_index, ApiNodeDiagnosticsSummary& out_response) {
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         out_response.ok = false;
         out_response.error_code = "node_not_found";
         out_response.accepted_packet_count = 0;
@@ -353,7 +370,7 @@ bool Cyber32Api::getNodeCapabilities(
     }
 
     PublicNodeRecord node_record;
-    if (!readApiNodeRecord(node_index, node_record)) {
+    if (!readApiNodeRecord(*public_owner_store_, node_index, node_record)) {
         return false;
     }
 
@@ -361,7 +378,7 @@ bool Cyber32Api::getNodeCapabilities(
         return true;
     }
 
-    const NodeCapabilityMap& node_capabilities = apiPublicOwnerStore().nodeCapabilities();
+    const NodeCapabilityMap& node_capabilities = public_owner_store_->nodeCapabilities();
     for (uint8_t index = 0; index < node_capabilities.count(); ++index) {
         PublicNodeCapabilityLink link;
         if (!node_capabilities.readByIndex(index, link)) {
@@ -372,7 +389,10 @@ bool Cyber32Api::getNodeCapabilities(
         }
 
         PublicCapabilityRecord capability_record;
-        if (!findApiCapabilityRecordByInstanceId(link.capability_instance_id, capability_record)) {
+        if (!findApiCapabilityRecordByInstanceId(
+                *public_owner_store_,
+                link.capability_instance_id,
+                capability_record)) {
             continue;
         }
 
@@ -390,7 +410,7 @@ bool Cyber32Api::getNodeCapabilities(
 bool Cyber32Api::getCapabilityList(ApiCapabilityList& out_response) {
     out_response.ok = true;
     out_response.error_code = "none";
-    out_response.count = apiPublicOwnerStore().capabilities().count();
+    out_response.count = public_owner_store_->capabilities().count();
     if (out_response.count > API_MAX_CAPABILITY_SUMMARY_COUNT) {
         out_response.count = API_MAX_CAPABILITY_SUMMARY_COUNT;
     }
@@ -401,7 +421,7 @@ bool Cyber32Api::getCapabilitySummary(
     uint8_t capability_index,
     ApiCapabilitySummary& out_response) {
     PublicCapabilityRecord capability_record;
-    if (!readApiCapabilityRecord(capability_index, capability_record)) {
+    if (!readApiCapabilityRecord(*public_owner_store_, capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         return false;
@@ -416,7 +436,7 @@ bool Cyber32Api::getCapabilityIdentity(
     uint8_t capability_index,
     ApiCapabilityIdentity& out_response) {
     PublicCapabilityRecord capability_record;
-    if (!readApiCapabilityRecord(capability_index, capability_record)) {
+    if (!readApiCapabilityRecord(*public_owner_store_, capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.capability_id = 0;
@@ -441,7 +461,7 @@ bool Cyber32Api::getCapabilityValue(
     uint8_t capability_index,
     ApiCapabilityValue& out_response) {
     PublicCapabilityRecord capability_record;
-    if (!readApiCapabilityRecord(capability_index, capability_record)) {
+    if (!readApiCapabilityRecord(*public_owner_store_, capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.value_type = PayloadValueType::NONE;
@@ -468,7 +488,7 @@ bool Cyber32Api::getCapabilityAvailability(
     uint8_t capability_index,
     ApiCapabilityAvailability& out_response) {
     PublicCapabilityRecord capability_record;
-    if (!readApiCapabilityRecord(capability_index, capability_record)) {
+    if (!readApiCapabilityRecord(*public_owner_store_, capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.available = Availability::UNAVAILABLE;
@@ -491,7 +511,7 @@ bool Cyber32Api::getCapabilityProviderInfo(
     uint8_t capability_index,
     ApiCapabilityProviderInfo& out_response) {
     PublicCapabilityRecord capability_record;
-    if (!readApiCapabilityRecord(capability_index, capability_record)) {
+    if (!readApiCapabilityRecord(*public_owner_store_, capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.active_provider_id = 0;
@@ -518,7 +538,7 @@ bool Cyber32Api::getCapabilityQuality(
     uint8_t capability_index,
     ApiCapabilityQuality& out_response) {
     PublicCapabilityRecord capability_record;
-    if (!readApiCapabilityRecord(capability_index, capability_record)) {
+    if (!readApiCapabilityRecord(*public_owner_store_, capability_index, capability_record)) {
         out_response.ok = false;
         out_response.error_code = "capability_not_found";
         out_response.quality = 0;

@@ -7,12 +7,14 @@
 namespace Cyber32 {
 
 class MotorService;
+class PublicOwnerStore;
 class RelayService;
 class ServoService;
 
 class Cyber32Api {
 public:
     Cyber32Api();
+    explicit Cyber32Api(PublicOwnerStore& owner_store);
 
     bool begin(Registry* registry, Runtime* runtime);
     void attachServoService(ServoService* service);
@@ -91,6 +93,7 @@ public:
 private:
     Registry* registry_;
     Runtime* runtime_;
+    const PublicOwnerStore* public_owner_store_;
     ServoService* servo_service_;
     MotorService* motor_service_;
     RelayService* relay_service_;

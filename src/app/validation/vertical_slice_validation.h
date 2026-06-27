@@ -213,6 +213,7 @@ private:
     bool validateRuntimeSafeModeHelpers();
     bool validateRuntimeTaskState();
     bool validateRegistryResultState();
+    bool validateGetNodeCapabilitiesOwnerBackedPositivePath();
     bool validateEspNowTransportInitializationSmoke();
     bool validateSimWirelessPacketTransportAdapter();
     bool validateEspNowWirelessPacketTransportAdapter();
