@@ -5,33 +5,27 @@
 #include "../services/motor/motor_service.h"
 #include "../services/relay/relay_service.h"
 #include "../services/servo/servo_service.h"
-#include "../../include/cyber32/public/capability_directory.h"
-#include "../../include/cyber32/public/node_directory.h"
+#include "../../include/cyber32/public/public_owner_store.h"
 
 namespace Cyber32 {
 
 namespace {
 
-NodeDirectory& apiNodeDirectory() {
-    // Provisional empty public owner for Node API attachment.
-    // A later public owner lifetime milestone can replace this with an explicit Core owner.
-    static NodeDirectory directory;
-    return directory;
-}
-
-CapabilityDirectory& apiCapabilityDirectory() {
-    // Provisional empty public owner for Capability API attachment.
-    // A later public owner lifetime milestone can replace this with an explicit Core owner.
-    static CapabilityDirectory directory;
-    return directory;
+PublicOwnerStore& apiPublicOwnerStore() {
+    // Provisional empty public owner for Node/Capability API attachment.
+    // A later Core context milestone can replace this with an explicit owner.
+    static PublicOwnerStore store;
+    return store;
 }
 
 bool readApiNodeRecord(uint8_t node_index, PublicNodeRecord& out_record) {
-    return apiNodeDirectory().readByIndex(static_cast<PublicNodeIndex>(node_index), out_record);
+    return apiPublicOwnerStore().nodes().readByIndex(
+        static_cast<PublicNodeIndex>(node_index),
+        out_record);
 }
 
 bool readApiCapabilityRecord(uint8_t capability_index, PublicCapabilityRecord& out_record) {
-    return apiCapabilityDirectory().readByIndex(
+    return apiPublicOwnerStore().capabilities().readByIndex(
         static_cast<PublicCapabilityIndex>(capability_index),
         out_record);
 }
@@ -175,7 +169,7 @@ bool Cyber32Api::getSystemSummary(ApiSystemSummary& out_response) {
 bool Cyber32Api::getNodeList(ApiNodeList& out_response) {
     out_response.ok = true;
     out_response.error_code = "none";
-    out_response.count = apiNodeDirectory().count();
+    out_response.count = apiPublicOwnerStore().nodes().count();
     return true;
 }
 
@@ -327,7 +321,7 @@ bool Cyber32Api::getNodeCapabilities(
 bool Cyber32Api::getCapabilityList(ApiCapabilityList& out_response) {
     out_response.ok = true;
     out_response.error_code = "none";
-    out_response.count = apiCapabilityDirectory().count();
+    out_response.count = apiPublicOwnerStore().capabilities().count();
     if (out_response.count > API_MAX_CAPABILITY_SUMMARY_COUNT) {
         out_response.count = API_MAX_CAPABILITY_SUMMARY_COUNT;
     }
